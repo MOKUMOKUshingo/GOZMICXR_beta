@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Ocean Vibes 3D / VR / AR Scene</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud">
+    <a id="backLink" href="../index.html#gallery" aria-label="Back to Ocean Vibes gallery">← Gallery</a>
+    <div id="titleBlock">
+      <div class="eyebrow">three.js portal</div>
+      <h1>Ocean Vibes 3D / VR / AR</h1>
+      <p>PC: WASD + drag. Mobile: stick + swipe. VR: press ENTER VR. AR: press START AR, scan a floor or desk, then tap to place the Ocean Vibes mini gallery.</p>
+    </div>
+  </div>
+
+  <div id="mobileControls" aria-hidden="true">
+    <div id="stickBase"><div id="stickKnob"></div></div>
+    <div id="mobileHint">DRAG TO LOOK</div>
+  </div>
+
+  <video id="oceanVideo" src="../video/ocean-sea-wave-video.mp4" muted loop playsinline preload="auto"></video>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
