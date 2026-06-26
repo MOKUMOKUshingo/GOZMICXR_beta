@@ -6,11 +6,13 @@ const LANG_KEY = 'oceanVibesLang';
 const sceneTexts = {
   en: {
     titleSprite: "Chico's morning-bus fear opened this 3D ocean.",
-    vrGuide: ['VR MODE', 'Trigger: teleport  /  Thumbstick: move'],
+    vrGuide: ['VR MODE', 'Left stick: turn only', 'Right stick: move only / Trigger: select'],
     arName: 'Ocean Vibes AR Mini Gallery',
     arLabel: ['Ocean Vibes AR', 'tap a surface to place'],
     vrButton: 'ENTER VR',
     arButton: 'START AR',
+    cameraARButton: 'CAMERA AR',
+    exitCameraAR: 'EXIT CAMERA AR',
     videoLabel: 'PROJECT MOVIE',
     videoWaiting: 'The large movie is not loaded yet. The poster is shown until the video can play.',
     videoLoading: 'Loading projectmovie1.mp4... If it is hundreds of MB, this can take time.',
@@ -32,11 +34,13 @@ const sceneTexts = {
   },
   ja: {
     titleSprite: 'Chicoの写真から開いた3D海上空間。',
-    vrGuide: ['VRモード', 'トリガー：テレポート / スティック：移動'],
+    vrGuide: ['VRモード', '左スティック：回転のみ', '右スティック：並進のみ / トリガー：選択'],
     arName: 'Ocean Vibes AR ミニギャラリー',
     arLabel: ['Ocean Vibes AR', '床や机をタップして配置'],
     vrButton: 'VRに入る',
     arButton: 'ARを開始',
+    cameraARButton: 'カメラAR',
+    exitCameraAR: 'カメラAR終了',
     videoLabel: 'PROJECT MOVIE',
     videoWaiting: '大容量動画はまだ読み込んでいません。再生できるまではposter画像を表示します。',
     videoLoading: 'projectmovie1.mp4を読み込み中です。数百MBある場合は時間がかかります。',
@@ -130,6 +134,9 @@ app.appendChild(renderer.domElement);
 
 let requestedXRMode = null;
 let currentXRMode = null;
+let cameraARActive = false;
+let cameraARStream = null;
+let cameraARVideo = null;
 
 const vrButton = VRButton.createButton(renderer);
 vrButton.id = 'VRButton';
@@ -139,8 +146,7 @@ vrButton.addEventListener('click', () => {
 document.body.appendChild(vrButton);
 
 const arButton = ARButton.createButton(renderer, {
-  requiredFeatures: ['hit-test'],
-  optionalFeatures: ['dom-overlay'],
+  optionalFeatures: ['hit-test', 'dom-overlay', 'local-floor'],
   domOverlay: { root: document.body }
 });
 arButton.id = 'ARButton';
@@ -148,6 +154,16 @@ arButton.addEventListener('click', () => {
   if (!renderer.xr.isPresenting) requestedXRMode = 'ar';
 });
 document.body.appendChild(arButton);
+
+const cameraARButton = document.createElement('button');
+cameraARButton.id = 'CameraARButton';
+cameraARButton.type = 'button';
+cameraARButton.textContent = tr.cameraARButton || 'CAMERA AR';
+cameraARButton.addEventListener('click', () => {
+  if (cameraARActive) stopCameraARFallback();
+  else startCameraARFallback();
+});
+document.body.appendChild(cameraARButton);
 setXRButtonLabels();
 setTimeout(setXRButtonLabels, 300);
 setTimeout(setXRButtonLabels, 1200);
@@ -259,6 +275,8 @@ const video = document.getElementById('oceanVideo');
 video.muted = true;
 video.loop = true;
 video.playsInline = true;
+video.setAttribute('playsinline', '');
+video.setAttribute('webkit-playsinline', '');
 video.preload = 'metadata';
 
 const posterTexture = loader.load('../img/title1-poster.jpg');
@@ -507,11 +525,35 @@ function reloadProjectMovie() {
   startProjectVideo(false, 'manual');
 }
 
-if (playProjectMuted) playProjectMuted.addEventListener('click', () => startProjectVideo(false, 'manual'));
-if (playProjectSound) playProjectSound.addEventListener('click', () => startProjectVideo(true, 'manual'));
-if (rewindProjectVideo) rewindProjectVideo.addEventListener('click', () => seekProjectVideo(-10));
-if (forwardProjectVideo) forwardProjectVideo.addEventListener('click', () => seekProjectVideo(10));
-if (reloadProjectVideo) reloadProjectVideo.addEventListener('click', reloadProjectMovie);
+function bindVideoButton(button, handler) {
+  if (!button) return;
+  let handledAt = 0;
+  const run = (event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const now = performance.now();
+    if (now - handledAt < 350) return;
+    handledAt = now;
+    handler();
+  };
+  button.addEventListener('pointerup', run);
+  button.addEventListener('touchend', run, { passive: false });
+  button.addEventListener('click', (event) => {
+    if (performance.now() - handledAt < 650) {
+      event.preventDefault();
+      return;
+    }
+    run(event);
+  });
+}
+
+bindVideoButton(playProjectMuted, () => startProjectVideo(false, 'manual'));
+bindVideoButton(playProjectSound, () => startProjectVideo(true, 'manual'));
+bindVideoButton(rewindProjectVideo, () => seekProjectVideo(-10));
+bindVideoButton(forwardProjectVideo, () => seekProjectVideo(10));
+bindVideoButton(reloadProjectVideo, reloadProjectMovie);
 
 video.addEventListener('loadedmetadata', () => {
   if (!videoEverPlayed) setProjectVideoStatus(tr.videoReady, '');
@@ -788,8 +830,12 @@ function updateARHitTest(frame) {
 const arCameraWorld = new THREE.Vector3();
 const arPlacePosition = new THREE.Vector3();
 
+function getActiveViewCamera() {
+  return renderer.xr.isPresenting ? renderer.xr.getCamera(camera) : camera;
+}
+
 function orientARContentTowardCamera() {
-  renderer.xr.getCamera(camera).getWorldPosition(arCameraWorld);
+  getActiveViewCamera().getWorldPosition(arCameraWorld);
   arContent.lookAt(arCameraWorld.x, arContent.position.y, arCameraWorld.z);
 }
 
@@ -817,6 +863,87 @@ function placeARContentInFrontOfCamera() {
   orientARContentTowardCamera();
   arContent.visible = true;
   return true;
+}
+
+function placeCameraARContentInFrontOfCamera() {
+  const forward = new THREE.Vector3();
+  camera.updateMatrixWorld(true);
+  camera.getWorldPosition(arCameraWorld);
+  camera.getWorldDirection(forward);
+  if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
+  forward.normalize();
+  arContent.position.copy(arCameraWorld).addScaledVector(forward, 1.35);
+  arContent.position.y = arCameraWorld.y - 0.38;
+  orientARContentTowardCamera();
+  arContent.visible = true;
+  return true;
+}
+
+async function startCameraARFallback() {
+  if (renderer.xr.isPresenting || cameraARActive) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setProjectVideoStatus('Camera AR is not available in this browser.', 'error');
+    return;
+  }
+
+  try {
+    if (!cameraARVideo) {
+      cameraARVideo = document.createElement('video');
+      cameraARVideo.id = 'cameraARBackground';
+      cameraARVideo.autoplay = true;
+      cameraARVideo.muted = true;
+      cameraARVideo.playsInline = true;
+      cameraARVideo.setAttribute('playsinline', '');
+      cameraARVideo.setAttribute('webkit-playsinline', '');
+      document.body.insertBefore(cameraARVideo, app);
+    }
+
+    cameraARStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
+    cameraARVideo.srcObject = cameraARStream;
+    await cameraARVideo.play();
+
+    cameraARActive = true;
+    document.body.classList.add('in-camera-ar');
+    cameraARButton.textContent = tr.exitCameraAR || 'EXIT CAMERA AR';
+    scene.background = null;
+    scene.fog = null;
+    renderer.setClearColor(0x000000, 0);
+    setVRSceneVisible(false);
+    arReticle.visible = false;
+    player.position.set(0, 0, 0);
+    camera.position.copy(desktopCameraPosition);
+    camera.rotation.set(pitch, yaw, 0);
+    placeCameraARContentInFrontOfCamera();
+    startProjectVideo(false, 'auto');
+  } catch (error) {
+    setProjectVideoStatus('Camera AR could not start. Please allow camera access or use WebXR AR on Android Chrome.', 'error');
+    stopCameraARFallback();
+  }
+}
+
+function stopCameraARFallback() {
+  cameraARActive = false;
+  document.body.classList.remove('in-camera-ar');
+  cameraARButton.textContent = tr.cameraARButton || 'CAMERA AR';
+  if (cameraARStream) {
+    cameraARStream.getTracks().forEach((track) => track.stop());
+    cameraARStream = null;
+  }
+  if (cameraARVideo) cameraARVideo.srcObject = null;
+  scene.background = defaultBackground;
+  scene.fog = defaultFog;
+  renderer.setClearColor(0x000000, 1);
+  setVRSceneVisible(true);
+  arContent.visible = false;
+  camera.position.copy(desktopCameraPosition);
+  camera.rotation.set(pitch, yaw, 0);
 }
 
 const boundaryRadius = 19.5;
@@ -1072,45 +1199,86 @@ function updateDesktopMovement(delta) {
   clampPlayerPosition();
 }
 
-function getXRInputAxes() {
+function extractGamepadStickAxes(gamepad) {
+  if (!gamepad || !gamepad.axes) return { x: 0, y: 0 };
+  const axes = gamepad.axes;
+  // Meta Quest / WebXR commonly exposes thumbsticks as axes[2]/axes[3],
+  // but some browsers/devices expose them as axes[0]/axes[1].
+  const candidates = [
+    { x: axes[2] || 0, y: axes[3] || 0 },
+    { x: axes[0] || 0, y: axes[1] || 0 }
+  ];
+  return candidates.reduce((best, cur) => (
+    Math.abs(cur.x) + Math.abs(cur.y) > Math.abs(best.x) + Math.abs(best.y) ? cur : best
+  ), { x: 0, y: 0 });
+}
+
+function getXRInputAxesByHand(handedness) {
   const session = renderer.xr.getSession();
   if (!session) return { x: 0, y: 0 };
-  let x = 0;
-  let y = 0;
 
+  let fallbackIndex = handedness === 'left' ? 0 : 1;
+  let fallbackSource = null;
+  let index = 0;
   for (const source of session.inputSources) {
-    if (!source.gamepad || !source.gamepad.axes) continue;
-    const axes = source.gamepad.axes;
-    const ax = Math.abs(axes[2] || 0) > 0.12 ? axes[2] : (Math.abs(axes[0] || 0) > 0.12 ? axes[0] : 0);
-    const ay = Math.abs(axes[3] || 0) > 0.12 ? axes[3] : (Math.abs(axes[1] || 0) > 0.12 ? axes[1] : 0);
-    if (Math.abs(ax) + Math.abs(ay) > Math.abs(x) + Math.abs(y)) {
-      x = ax;
-      y = ay;
-    }
+    if (!source.gamepad) continue;
+    if (source.handedness === handedness) return extractGamepadStickAxes(source.gamepad);
+    if (index === fallbackIndex) fallbackSource = source;
+    index += 1;
   }
-  return { x, y };
+
+  return fallbackSource ? extractGamepadStickAxes(fallbackSource.gamepad) : { x: 0, y: 0 };
+}
+
+function applyDeadzone(value, deadzone = 0.16) {
+  if (Math.abs(value) < deadzone) return 0;
+  const sign = Math.sign(value);
+  return sign * ((Math.abs(value) - deadzone) / (1 - deadzone));
 }
 
 const tmpDirection = new THREE.Vector3();
 const tmpSide = new THREE.Vector3();
+const tmpHeadBefore = new THREE.Vector3();
+const tmpHeadAfter = new THREE.Vector3();
+
+function rotatePlayerAroundHead(deltaYaw) {
+  if (Math.abs(deltaYaw) < 0.00001) return;
+  const xrCamera = renderer.xr.getCamera(camera);
+  xrCamera.getWorldPosition(tmpHeadBefore);
+  player.rotation.y += deltaYaw;
+  player.updateMatrixWorld(true);
+  xrCamera.getWorldPosition(tmpHeadAfter);
+  player.position.x += tmpHeadBefore.x - tmpHeadAfter.x;
+  player.position.z += tmpHeadBefore.z - tmpHeadAfter.z;
+}
 
 function updateXRMovement(delta) {
-  const axes = getXRInputAxes();
-  if (Math.abs(axes.x) < 0.12 && Math.abs(axes.y) < 0.12) return;
+  const leftAxesRaw = getXRInputAxesByHand('left');
+  const rightAxesRaw = getXRInputAxesByHand('right');
+  const leftX = applyDeadzone(leftAxesRaw.x);
+  const rightX = applyDeadzone(rightAxesRaw.x);
+  const rightY = applyDeadzone(rightAxesRaw.y);
 
-  const xrCamera = renderer.xr.getCamera(camera);
-  xrCamera.getWorldDirection(tmpDirection);
-  tmpDirection.y = 0;
-  if (tmpDirection.lengthSq() < 0.001) tmpDirection.set(0, 0, -1);
-  tmpDirection.normalize();
-  // Use the same handedness as desktop WASD: stick-left moves left, stick-right moves right.
-  // The previous tmpSide formula produced the opposite horizontal direction on the left controller.
-  tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
+  // Left controller: rotation only. No parallel translation is applied here.
+  if (Math.abs(leftX) > 0) {
+    const turnSpeed = 1.85;
+    rotatePlayerAroundHead(-leftX * turnSpeed * delta);
+  }
 
-  const speed = 2.2;
-  player.position.addScaledVector(tmpDirection, -axes.y * speed * delta);
-  player.position.addScaledVector(tmpSide, axes.x * speed * delta);
-  clampPlayerPosition();
+  // Right controller: translation only. It never changes the view direction.
+  if (Math.abs(rightX) > 0 || Math.abs(rightY) > 0) {
+    const xrCamera = renderer.xr.getCamera(camera);
+    xrCamera.getWorldDirection(tmpDirection);
+    tmpDirection.y = 0;
+    if (tmpDirection.lengthSq() < 0.001) tmpDirection.set(0, 0, -1);
+    tmpDirection.normalize();
+    tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
+
+    const speed = 2.2;
+    player.position.addScaledVector(tmpDirection, -rightY * speed * delta);
+    player.position.addScaledVector(tmpSide, rightX * speed * delta);
+    clampPlayerPosition();
+  }
 }
 
 const tempMatrix = new THREE.Matrix4();
@@ -1146,6 +1314,7 @@ function teleportTo(point) {
 }
 
 renderer.xr.addEventListener('sessionstart', () => {
+  if (cameraARActive) stopCameraARFallback();
   const session = renderer.xr.getSession();
   currentXRMode = requestedXRMode || (session && session.environmentBlendMode !== 'opaque' ? 'ar' : 'vr');
   document.body.classList.toggle('in-vr', currentXRMode === 'vr');
@@ -1178,6 +1347,7 @@ renderer.xr.addEventListener('sessionstart', () => {
 });
 
 renderer.xr.addEventListener('sessionend', () => {
+  if (cameraARActive) stopCameraARFallback();
   document.body.classList.remove('in-vr', 'in-ar');
   currentXRMode = null;
   requestedXRMode = null;
@@ -1200,7 +1370,11 @@ function animate(timestamp, frame) {
   const delta = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
 
-  if (renderer.xr.isPresenting && currentXRMode === 'ar') {
+  if (cameraARActive) {
+    camera.rotation.set(pitch, yaw, 0);
+    camera.updateMatrixWorld(true);
+    placeCameraARContentInFrontOfCamera();
+  } else if (renderer.xr.isPresenting && currentXRMode === 'ar') {
     updateARHitTest(frame);
   } else if (renderer.xr.isPresenting) {
     updateXRMovement(delta);

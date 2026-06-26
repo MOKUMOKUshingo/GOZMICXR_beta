@@ -89,3 +89,21 @@ body.in-ar .project-video-panel {
     padding: 7px 10px;
   }
 }
+
+
+.project-video-panel,
+.project-video-panel * {
+  touch-action: manipulation;
+}
+
+@media (max-width: 760px) {
+  .project-video-actions {
+    gap: 9px;
+  }
+  .project-video-actions button {
+    min-height: 36px;
+  }
+  #playProjectSound {
+    flex: 1 1 140px;
+  }
+}
