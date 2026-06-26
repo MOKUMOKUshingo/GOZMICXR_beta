@@ -7,7 +7,7 @@ This package keeps the working top-page video setup unchanged and applies the sa
 ## What changed
 
 - three_scene/index.html now uses:
-  <video id="oceanVideo" src="../video/projectmovie1.mp4" poster="../img/title1-poster.jpg" muted loop playsinline webkit-playsinline preload="metadata"></video>
+  <video id="COZMIX SpaceVideo" src="../video/projectmovie1.mp4" poster="../img/title1-poster.jpg" muted loop playsinline webkit-playsinline preload="metadata"></video>
 
 - three_scene/main.js now starts the 3D/VR/AR movie screen with the poster texture first.
 - The THREE.VideoTexture is created and attached only after video playback/loadeddata starts.

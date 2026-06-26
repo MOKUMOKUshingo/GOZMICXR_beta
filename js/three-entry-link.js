@@ -1,7 +1,7 @@
 (function () {
   const TARGET_CAPTION = "Chico's main fear was missing the morning bus.";
   const THREE_PAGE = 'three_scene/index.html';
-  const LANG_KEY = 'oceanVibesLang';
+  const LANG_KEY = 'cozmixSpaceLang';
 
   function normalize(text) {
     return (text || '').replace(/\s+/g, ' ').trim();

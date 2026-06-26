@@ -19,7 +19,7 @@ ffmpeg -i projectmovie1.mp4 -vf "scale=854:480:force_original_aspect_ratio=decre
 
 2. PC Web上のthree.js動画黒画面対策
 --------------------------------
-- WebGL用の <video id="oceanVideo"> を完全に画面外/背面に追いやりすぎないように変更。
+- WebGL用の <video id="COZMIX SpaceVideo"> を完全に画面外/背面に追いやりすぎないように変更。
 - 再生開始時に THREE.VideoTexture を再生成するように変更。
 - requestVideoFrameCallback が使えるブラウザでは、動画フレームごとにテクスチャ更新を明示。
 

@@ -1,7 +1,7 @@
 VR update summary
 =================
 
-This package keeps the original TemplateMo Ocean Vibes structure and the previous Chico-click transition.
+This package keeps the original GOZMIX COZMIX Space Vibes structure and the previous Chico-click transition.
 The three_scene page has been upgraded from a simple three.js page to a WebXR-ready VR space.
 
 Main changes:

@@ -1,5 +1,5 @@
 (function () {
-  const LANG_KEY = 'oceanVibesLang';
+  const LANG_KEY = 'cozmixSpaceLang';
   const VIDEO_TIMEOUT_MS = 12000;
 
   const text = {
