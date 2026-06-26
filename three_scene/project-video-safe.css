@@ -180,3 +180,25 @@ body.is-mobile .native-mobile-only {
   font-size: 13px;
   color: rgba(255,255,255,0.82);
 }
+
+
+/* Mobile video controls must receive real touch events. The global page uses
+   touch-action:none for the 3D joystick, so explicitly restore native video behavior here. */
+.native-video-overlay,
+.native-video-overlay *,
+.native-video-card video {
+  touch-action: auto !important;
+  pointer-events: auto;
+}
+
+@media (max-width: 760px) {
+  .native-video-card video {
+    max-height: 72vh;
+    border-radius: 10px;
+  }
+  .native-video-close {
+    width: 48px;
+    height: 48px;
+    line-height: 48px;
+  }
+}
