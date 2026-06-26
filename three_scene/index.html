@@ -41,11 +41,11 @@
   <div id="nativeVideoOverlay" class="native-video-overlay" hidden aria-hidden="true">
     <div class="native-video-card">
       <button type="button" id="closeNativeVideo" class="native-video-close" aria-label="Close video">×</button>
-      <video id="nativeProjectVideo" poster="../img/title1-poster.jpg" controls playsinline webkit-playsinline preload="metadata">
-        <source src="../video/projectmovie1_mobile.mp4" type="video/mp4" />
-        <source src="../video/projectmovie1.mp4" type="video/mp4" />
-      </video>
-      <p id="nativeVideoNote">スマホで3D内再生できない場合は、このネイティブ再生で確認できます。</p>
+      <video id="nativeProjectVideo" poster="../img/title1-poster.jpg" controls playsinline webkit-playsinline preload="metadata" src="../video/projectmovie1.mp4"></video>
+      <div class="native-video-actions">
+        <a id="directProjectVideoLink" href="../video/projectmovie1.mp4" target="_blank" rel="noopener">動画を直接開く / Open video directly</a>
+      </div>
+      <p id="nativeVideoNote">スマホで3D内再生できない場合は、上のリンクで動画ファイルを直接開いて確認できます。</p>
     </div>
   </div>
 

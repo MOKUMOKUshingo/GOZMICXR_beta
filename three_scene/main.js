@@ -107,6 +107,7 @@ const openNativeProjectVideo = document.getElementById('openNativeProjectVideo')
 const nativeVideoOverlay = document.getElementById('nativeVideoOverlay');
 const nativeProjectVideo = document.getElementById('nativeProjectVideo');
 const closeNativeVideo = document.getElementById('closeNativeVideo');
+const directProjectVideoLink = document.getElementById('directProjectVideoLink');
 const nativeVideoNote = document.getElementById('nativeVideoNote');
 if (projectVideoLabel) projectVideoLabel.textContent = tr.videoLabel;
 if (playProjectMuted) playProjectMuted.textContent = tr.playMuted;
@@ -289,12 +290,54 @@ ring.position.set(0, 2.3, -7.0);
 portalGroup.add(ring);
 
 const video = document.getElementById('oceanVideo');
+const PROJECT_VIDEO_SRC = '../video/projectmovie1.mp4';
+const PROJECT_VIDEO_MOBILE_SRC = '../video/projectmovie1_mobile.mp4';
+let selectedProjectVideoSrc = PROJECT_VIDEO_SRC;
+
+function setProjectVideoSources(src) {
+  selectedProjectVideoSrc = src || PROJECT_VIDEO_SRC;
+  if (video && video.src !== new URL(selectedProjectVideoSrc, window.location.href).href) {
+    video.pause();
+    video.src = selectedProjectVideoSrc;
+  }
+  if (nativeProjectVideo && nativeProjectVideo.src !== new URL(selectedProjectVideoSrc, window.location.href).href) {
+    nativeProjectVideo.pause();
+    nativeProjectVideo.src = selectedProjectVideoSrc;
+  }
+  if (directProjectVideoLink) directProjectVideoLink.href = selectedProjectVideoSrc;
+}
+
+async function canUseVideoFile(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    return response && response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function initializeProjectVideoSource() {
+  // Do not put a missing projectmovie1_mobile.mp4 into <source> directly.
+  // Some mobile browsers stop after the first failed source and show
+  // “could not be played”. We only switch to the mobile file if it exists.
+  let src = PROJECT_VIDEO_SRC;
+  if (isMobile && await canUseVideoFile(PROJECT_VIDEO_MOBILE_SRC)) {
+    src = PROJECT_VIDEO_MOBILE_SRC;
+  }
+  setProjectVideoSources(src);
+  try { video.load(); } catch (e) {}
+  try { if (nativeProjectVideo) nativeProjectVideo.load(); } catch (e) {}
+  return src;
+}
+
 video.muted = true;
 video.loop = true;
 video.playsInline = true;
 video.setAttribute('playsinline', '');
 video.setAttribute('webkit-playsinline', '');
 video.preload = 'metadata';
+setProjectVideoSources(PROJECT_VIDEO_SRC);
+const projectVideoSourceReady = initializeProjectVideoSource();
 
 const posterTexture = loader.load('../img/title1-poster.jpg');
 posterTexture.colorSpace = THREE.SRGBColorSpace;
@@ -437,14 +480,27 @@ function applyProjectVideoMap(texture) {
   }
 }
 
-function ensureFallbackHTMLVideoTexture() {
-  if (!htmlVideoTexture) {
-    htmlVideoTexture = new THREE.VideoTexture(video);
-    htmlVideoTexture.colorSpace = THREE.SRGBColorSpace;
-    htmlVideoTexture.minFilter = THREE.LinearFilter;
-    htmlVideoTexture.magFilter = THREE.LinearFilter;
-    htmlVideoTexture.generateMipmaps = false;
+function buildHTMLVideoTexture() {
+  const texture = new THREE.VideoTexture(video);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+function rebuildHTMLVideoTexture() {
+  if (htmlVideoTexture) {
+    try { htmlVideoTexture.dispose(); } catch (e) {}
   }
+  htmlVideoTexture = buildHTMLVideoTexture();
+  videoTexture = htmlVideoTexture;
+  applyProjectVideoMap(htmlVideoTexture);
+  return htmlVideoTexture;
+}
+
+function ensureFallbackHTMLVideoTexture() {
+  if (!htmlVideoTexture) htmlVideoTexture = buildHTMLVideoTexture();
   return htmlVideoTexture;
 }
 
@@ -521,6 +577,7 @@ function syncNativeProjectVideoTime() {
 
 async function openNativeProjectVideoOverlay(withSound = true) {
   if (!nativeProjectVideo || !nativeVideoOverlay) return false;
+  try { await projectVideoSourceReady; } catch (e) {}
   nativeVideoOverlay.hidden = false;
   nativeVideoOverlay.setAttribute('aria-hidden', 'false');
   syncNativeProjectVideoTime();
@@ -529,16 +586,17 @@ async function openNativeProjectVideoOverlay(withSound = true) {
   else nativeProjectVideo.setAttribute('muted', '');
   nativeProjectVideo.volume = withSound ? 1.0 : 0.0;
   try {
-    // Force the native element to evaluate its <source> list after the overlay
+    // Force the native element to evaluate the selected src after the overlay
     // becomes visible. This helps mobile Safari / Chrome recover from a prior
     // failed hidden-video play attempt.
+    if (!nativeProjectVideo.src) nativeProjectVideo.src = selectedProjectVideoSrc;
     if (nativeProjectVideo.readyState === 0) nativeProjectVideo.load();
     const promise = nativeProjectVideo.play();
     if (promise && typeof promise.then === 'function') await promise;
     setProjectVideoStatus(withSound ? tr.videoPlayingSound : tr.videoPlayingMuted, 'playing');
     return true;
   } catch (error) {
-    setProjectVideoStatus(tr.videoError, 'error');
+    setProjectVideoStatus(tr.videoError + ' 直接リンクも試してください。', 'error');
     return false;
   }
 }
@@ -555,6 +613,7 @@ function closeNativeProjectVideoOverlay() {
 
 async function startProjectVideo(withSound = false, source = 'manual') {
   if (!video) return false;
+  try { await projectVideoSourceReady; } catch (e) {}
   clearTimeout(videoLoadTimer);
 
   // Mobile browsers often reject hidden-video + WebGL texture playback even
@@ -582,6 +641,7 @@ async function startProjectVideo(withSound = false, source = 'manual') {
     if (video.readyState === 0) video.load();
     const playPromise = video.play();
     if (playPromise && typeof playPromise.then === 'function') await playPromise;
+    rebuildHTMLVideoTexture();
     ensureVideoTexture();
     videoEverPlayed = true;
     setProjectVideoStatus(withSound ? tr.videoPlayingSound : tr.videoPlayingMuted, 'playing');
@@ -721,6 +781,19 @@ video.addEventListener('error', () => {
   showPosterOnVideoScreens();
   setProjectVideoStatus(tr.videoError, 'error');
 });
+
+if (video.requestVideoFrameCallback) {
+  const onProjectVideoFrame = () => {
+    if (!video.paused && !video.ended) {
+      const texture = ensureFallbackHTMLVideoTexture();
+      texture.needsUpdate = true;
+      applyProjectVideoMap(texture);
+    }
+    video.requestVideoFrameCallback(onProjectVideoFrame);
+  };
+  video.requestVideoFrameCallback(onProjectVideoFrame);
+}
+
 if (nativeProjectVideo) {
   nativeProjectVideo.addEventListener('play', () => {
     if (video && !video.paused) video.pause();
@@ -733,6 +806,9 @@ if (nativeProjectVideo) {
     if (nativeVideoOverlay && !nativeVideoOverlay.hidden && video) {
       try { video.currentTime = nativeProjectVideo.currentTime; } catch (e) {}
     }
+  });
+  nativeProjectVideo.addEventListener('error', () => {
+    setProjectVideoStatus(tr.videoError + ' 直接リンク、またはprojectmovie1_mobile.mp4を試してください。', 'error');
   });
 }
 if (nativeVideoOverlay) {
@@ -756,7 +832,7 @@ projectScreenGroup.rotation.x = 0.48;
 portalGroup.add(projectScreenGroup);
 
 const videoScreen = new THREE.Mesh(
-  createParabolicScreenGeometry(13.35, 7.50, 96, 54, 1.15),
+  createParabolicScreenGeometry(17.08, 9.60, 120, 68, 1.45),
   videoMaterial
 );
 videoScreen.name = 'Project Movie Large High Parabolic Screen';
@@ -765,17 +841,17 @@ projectScreenGroup.add(videoScreen);
 addVideoInteractiveObject(videoScreen, 'toggle');
 
 const rewindButton3D = makeVideoControlButton(tr.rewindVideo, 'rewind', 1.55, 0.48);
-rewindButton3D.position.set(-2.15, -4.25, 0.42);
+rewindButton3D.position.set(-2.75, -5.35, 0.56);
 projectScreenGroup.add(rewindButton3D);
 addVideoInteractiveObject(rewindButton3D, 'rewind');
 
 const playButton3D = makeVideoControlButton('PLAY', 'toggle', 1.70, 0.48);
-playButton3D.position.set(0, -4.25, 0.42);
+playButton3D.position.set(0, -5.35, 0.56);
 projectScreenGroup.add(playButton3D);
 addVideoInteractiveObject(playButton3D, 'toggle');
 
 const forwardButton3D = makeVideoControlButton(tr.forwardVideo, 'forward', 1.55, 0.48);
-forwardButton3D.position.set(2.15, -4.25, 0.42);
+forwardButton3D.position.set(2.75, -5.35, 0.56);
 projectScreenGroup.add(forwardButton3D);
 addVideoInteractiveObject(forwardButton3D, 'forward');
 
@@ -788,7 +864,7 @@ const videoHelp = makeTextSprite(tr.video3DHelp, {
   scaleY: 1.05,
   background: 'rgba(0, 20, 32, 0.70)'
 });
-videoHelp.position.set(0, -5.15, 0.48);
+videoHelp.position.set(0, -6.08, 0.86);
 projectScreenGroup.add(videoHelp);
 
 const cards = [];
@@ -866,11 +942,11 @@ arGrid.material.opacity = 0.42;
 arContent.add(arGrid);
 
 const arPortal = new THREE.Group();
-arPortal.position.set(0, 0.55, -0.55);
+arPortal.position.set(0, 1.10, -0.72);
 arContent.add(arPortal);
 
 const arPortalRing = new THREE.Mesh(
-  new THREE.TorusGeometry(0.32, 0.011, 16, 96),
+  new THREE.TorusGeometry(1.18, 0.018, 16, 128),
   new THREE.MeshStandardMaterial({ color: 0x69e6ff, emissive: 0x0b8cb4, emissiveIntensity: 1.35 })
 );
 arPortal.add(arPortalRing);
@@ -883,7 +959,7 @@ arVideoMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide
 });
 const arVideoScreen = new THREE.Mesh(
-  createParabolicScreenGeometry(0.58, 0.326, 32, 18, 0.055),
+  createParabolicScreenGeometry(2.32, 1.304, 56, 32, 0.22),
   arVideoMaterial
 );
 arVideoScreen.name = 'Project Movie AR Parabolic Screen';
@@ -895,7 +971,7 @@ addVideoInteractiveObject(arVideoScreen, 'toggle');
 // Add a transparent, slightly larger touch target so a trigger aimed at the
 // mini screen reliably toggles the movie.
 const arVideoHitTarget = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.76, 0.50),
+  new THREE.PlaneGeometry(2.70, 1.58),
   new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.001, depthWrite: false, side: THREE.DoubleSide })
 );
 arVideoHitTarget.name = 'Project Movie AR Large Hit Target';
@@ -903,18 +979,18 @@ arVideoHitTarget.position.z = 0.035;
 arPortal.add(arVideoHitTarget);
 addVideoInteractiveObject(arVideoHitTarget, 'toggle');
 
-const arRewindButton = makeVideoControlButton(tr.rewindVideo, 'rewind', 0.18, 0.064);
-arRewindButton.position.set(-0.215, -0.245, 0.018);
+const arRewindButton = makeVideoControlButton(tr.rewindVideo, 'rewind', 0.72, 0.256);
+arRewindButton.position.set(-0.88, -0.88, 0.12);
 arPortal.add(arRewindButton);
 addVideoInteractiveObject(arRewindButton, 'rewind');
 
-const arPlayButton = makeVideoControlButton('▶', 'toggle', 0.18, 0.064);
-arPlayButton.position.set(0, -0.245, 0.018);
+const arPlayButton = makeVideoControlButton('▶', 'toggle', 0.72, 0.256);
+arPlayButton.position.set(0, -0.88, 0.12);
 arPortal.add(arPlayButton);
 addVideoInteractiveObject(arPlayButton, 'toggle');
 
-const arForwardButton = makeVideoControlButton(tr.forwardVideo, 'forward', 0.18, 0.064);
-arForwardButton.position.set(0.215, -0.245, 0.018);
+const arForwardButton = makeVideoControlButton(tr.forwardVideo, 'forward', 0.72, 0.256);
+arForwardButton.position.set(0.88, -0.88, 0.12);
 arPortal.add(arForwardButton);
 addVideoInteractiveObject(arForwardButton, 'forward');
 
@@ -1150,138 +1226,110 @@ function createCapsulePart(radius, length, color, emissive = 0x123744) {
 function createXRHandModel(handedness = 'right') {
   const side = handedness === 'left' ? -1 : 1;
   const group = new THREE.Group();
-  group.name = `${handedness} friendly cyber glove hand`;
-  group.rotation.x = -0.10;
-  group.position.set(0, -0.01, -0.055);
+  group.name = `${handedness} soft human-like hand`;
+  group.position.set(0, -0.018, -0.065);
+  group.rotation.set(-0.12, 0, 0);
 
-  const gloveMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf4f8fb,
-    emissive: 0x142f38,
-    emissiveIntensity: 0.18,
-    roughness: 0.48,
-    metalness: 0.10
+  const skin = new THREE.MeshStandardMaterial({
+    color: 0xf2c7a4,
+    roughness: 0.72,
+    metalness: 0.02
   });
-  const palmMaterial = new THREE.MeshStandardMaterial({
-    color: 0xe7eef2,
-    emissive: 0x112a32,
-    emissiveIntensity: 0.12,
+  const nail = new THREE.MeshStandardMaterial({
+    color: 0xfff3e7,
     roughness: 0.55,
-    metalness: 0.08
+    metalness: 0.01
   });
-  const accentMaterial = new THREE.MeshStandardMaterial({
-    color: 0x73dfff,
-    emissive: 0x117d99,
-    emissiveIntensity: 0.55,
-    roughness: 0.28,
-    metalness: 0.22
-  });
-  const jointMaterial = new THREE.MeshStandardMaterial({
-    color: 0xbfd8df,
-    emissive: 0x173a44,
-    emissiveIntensity: 0.18,
-    roughness: 0.42,
-    metalness: 0.20
+  const sleeve = new THREE.MeshStandardMaterial({
+    color: 0xe9eef2,
+    roughness: 0.58,
+    metalness: 0.04
   });
 
-  const palm = new THREE.Mesh(new THREE.SphereGeometry(0.105, 24, 16), palmMaterial);
-  palm.name = 'rounded glove palm';
-  palm.scale.set(0.86, 0.56, 1.15);
-  palm.position.set(0, -0.012, -0.055);
+  const palm = new THREE.Mesh(new THREE.BoxGeometry(0.142, 0.052, 0.172), skin);
+  palm.name = 'soft rectangular palm';
+  palm.position.set(0, -0.006, -0.040);
+  palm.rotation.x = -0.03;
   group.add(palm);
 
-  const backPlate = new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.018, 0.120), accentMaterial);
-  backPlate.name = 'soft blue back-of-hand plate';
-  backPlate.position.set(0, 0.033, -0.068);
-  backPlate.rotation.x = 0.10;
-  group.add(backPlate);
+  const palmRound = new THREE.Mesh(new THREE.SphereGeometry(0.088, 24, 14), skin);
+  palmRound.scale.set(0.86, 0.32, 1.05);
+  palmRound.position.set(0, -0.004, -0.060);
+  group.add(palmRound);
 
-  const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.070, 0.082, 0.055, 28), jointMaterial);
-  cuff.name = 'round wrist cuff';
-  cuff.rotation.x = Math.PI / 2;
-  cuff.position.set(0, -0.022, 0.040);
-  group.add(cuff);
+  const wrist = new THREE.Mesh(new THREE.CapsuleGeometry(0.040, 0.090, 10, 18), sleeve);
+  wrist.rotation.x = Math.PI / 2;
+  wrist.position.set(0, -0.014, 0.060);
+  wrist.scale.set(1.22, 0.84, 1.0);
+  group.add(wrist);
 
   const fingers = [];
-  const fingerSpecs = [
-    { x: -0.050, y: 0.018, z: -0.128, len1: 0.055, len2: 0.045, r: 0.012, spread: 0.10 },
-    { x: -0.017, y: 0.026, z: -0.137, len1: 0.068, len2: 0.054, r: 0.013, spread: 0.03 },
-    { x:  0.017, y: 0.025, z: -0.135, len1: 0.064, len2: 0.052, r: 0.013, spread: -0.03 },
-    { x:  0.050, y: 0.017, z: -0.126, len1: 0.052, len2: 0.043, r: 0.011, spread: -0.10 }
+  const specs = [
+    { x: -0.050, z: -0.132, l1: 0.057, l2: 0.043, r: 0.012, yrot: 0.08 },
+    { x: -0.017, z: -0.145, l1: 0.070, l2: 0.050, r: 0.013, yrot: 0.025 },
+    { x:  0.017, z: -0.143, l1: 0.067, l2: 0.049, r: 0.013, yrot: -0.025 },
+    { x:  0.050, z: -0.132, l1: 0.055, l2: 0.041, r: 0.011, yrot: -0.08 }
   ];
 
-  function addFinger(spec, index) {
+  function addNaturalFinger(spec, index) {
     const root = new THREE.Group();
-    root.name = `glove finger ${index + 1}`;
-    root.position.set(spec.x, spec.y, spec.z);
-    root.rotation.set(-0.08, spec.spread, 0);
+    root.name = `natural finger ${index + 1}`;
+    root.position.set(spec.x, 0.022, spec.z);
+    root.rotation.set(-0.20, spec.yrot, 0);
 
-    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(spec.r * 1.18, 14, 10), jointMaterial);
-    root.add(knuckle);
+    const base = new THREE.Mesh(new THREE.CapsuleGeometry(spec.r, spec.l1, 10, 18), skin);
+    base.rotation.x = Math.PI / 2;
+    base.position.z = -spec.l1 * 0.48;
+    root.add(base);
 
-    const seg1 = new THREE.Mesh(new THREE.CapsuleGeometry(spec.r, spec.len1, 8, 14), gloveMaterial);
-    seg1.rotation.x = Math.PI / 2;
-    seg1.position.z = -spec.len1 * 0.50;
-    root.add(seg1);
+    const mid = new THREE.Group();
+    mid.position.z = -spec.l1 + 0.002;
+    mid.rotation.x = -0.16;
+    const tip = new THREE.Mesh(new THREE.CapsuleGeometry(spec.r * 0.88, spec.l2, 10, 18), skin);
+    tip.rotation.x = Math.PI / 2;
+    tip.position.z = -spec.l2 * 0.48;
+    mid.add(tip);
+    root.add(mid);
 
-    const joint = new THREE.Mesh(new THREE.SphereGeometry(spec.r * 1.05, 14, 10), jointMaterial);
-    joint.position.z = -spec.len1 - 0.003;
-    root.add(joint);
-
-    const tipPivot = new THREE.Group();
-    tipPivot.position.z = -spec.len1 - 0.006;
-    const seg2 = new THREE.Mesh(new THREE.CapsuleGeometry(spec.r * 0.92, spec.len2, 8, 14), gloveMaterial);
-    seg2.rotation.x = Math.PI / 2;
-    seg2.position.z = -spec.len2 * 0.50;
-    tipPivot.add(seg2);
-    root.add(tipPivot);
-
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(spec.r * 0.98, 14, 10), gloveMaterial);
-    tip.position.z = -spec.len1 - spec.len2 - 0.011;
-    root.add(tip);
+    const nailMesh = new THREE.Mesh(new THREE.BoxGeometry(spec.r * 1.25, 0.004, spec.r * 1.9), nail);
+    nailMesh.position.set(0, 0.011, -spec.l1 - spec.l2 + 0.008);
+    nailMesh.rotation.x = -0.18;
+    root.add(nailMesh);
 
     group.add(root);
     fingers.push({
       root,
-      tipPivot,
-      rootOpenX: -0.08,
-      rootClosedX: -1.04 + index * 0.04,
-      tipOpenX: 0.0,
-      tipClosedX: -0.74,
-      baseY: spec.spread
+      tipPivot: mid,
+      rootOpenX: -0.20,
+      rootClosedX: -0.92 + index * 0.03,
+      tipOpenX: -0.16,
+      tipClosedX: -0.72
     });
   }
-  fingerSpecs.forEach(addFinger);
+  specs.forEach(addNaturalFinger);
 
-  const thumbRoot = new THREE.Group();
-  thumbRoot.name = 'glove thumb';
-  thumbRoot.position.set(side * 0.078, -0.004, -0.066);
-  thumbRoot.rotation.set(-0.38, side * 0.28, side * -0.82);
-  const thumbBase = new THREE.Mesh(new THREE.CapsuleGeometry(0.015, 0.052, 8, 14), gloveMaterial);
+  const thumb = new THREE.Group();
+  thumb.name = 'natural thumb';
+  thumb.position.set(side * 0.078, -0.010, -0.070);
+  thumb.rotation.set(-0.30, side * 0.38, side * -0.62);
+  const thumbBase = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.055, 10, 18), skin);
   thumbBase.rotation.x = Math.PI / 2;
   thumbBase.position.z = -0.030;
-  const thumbTip = new THREE.Mesh(new THREE.CapsuleGeometry(0.013, 0.042, 8, 14), gloveMaterial);
+  const thumbTip = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.043, 10, 18), skin);
   thumbTip.rotation.x = Math.PI / 2;
-  thumbTip.position.z = -0.080;
-  thumbRoot.add(thumbBase, thumbTip);
-  group.add(thumbRoot);
+  thumbTip.position.z = -0.078;
+  thumb.add(thumbBase, thumbTip);
+  group.add(thumb);
   fingers.push({
-    root: thumbRoot,
+    root: thumb,
     tipPivot: null,
-    rootOpenX: -0.38,
-    rootClosedX: -0.82,
-    rootOpenZ: side * -0.82,
-    rootClosedZ: side * -0.28,
+    rootOpenX: -0.30,
+    rootClosedX: -0.66,
+    rootOpenZ: side * -0.62,
+    rootClosedZ: side * -0.34,
     tipOpenX: 0,
     tipClosedX: 0
   });
-
-  const wristGlow = new THREE.Mesh(
-    new THREE.TorusGeometry(0.073, 0.0045, 8, 32),
-    new THREE.MeshBasicMaterial({ color: 0x72e8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
-  );
-  wristGlow.rotation.x = Math.PI / 2;
-  wristGlow.position.z = 0.070;
-  group.add(wristGlow);
 
   group.userData.fingers = fingers;
   group.userData.grip = 0;
@@ -1675,14 +1723,11 @@ function updateXRMovement(delta) {
   // right-stick turning, forward/sideways movement stays aligned with where the
   // user is actually facing instead of a fixed world-coordinate direction.
   if (Math.abs(leftX) > 0 || Math.abs(leftY) > 0) {
-    const xrCamera = renderer.xr.getCamera(camera);
-    player.updateMatrixWorld(true);
-    xrCamera.updateMatrixWorld(true);
-    xrCamera.getWorldDirection(tmpDirection);
-    tmpDirection.y = 0;
-    if (tmpDirection.lengthSq() < 0.001) tmpDirection.set(0, 0, -1).applyQuaternion(player.quaternion);
-    tmpDirection.normalize();
-    tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
+    // Stable controller locomotion: translate relative to the XR rig yaw that
+    // the right stick controls. This avoids the movement vector feeling fixed
+    // to world coordinates or drifting after turning.
+    tmpDirection.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y)).normalize();
+    tmpSide.set(Math.cos(player.rotation.y), 0, Math.sin(player.rotation.y)).normalize();
 
     const speed = 2.2;
     const moveScale = Math.min(1, Math.hypot(leftX, leftY));

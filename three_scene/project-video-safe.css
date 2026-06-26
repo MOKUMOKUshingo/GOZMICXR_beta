@@ -113,13 +113,19 @@ body.in-ar .project-video-panel {
    while preventing it from covering the three.js canvas. */
 #oceanVideo {
   position: fixed;
-  left: -8px;
-  bottom: -8px;
-  width: 2px;
-  height: 2px;
-  opacity: 0.01;
+  left: 0;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  opacity: 0.001;
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
+  transform: translate(-305px, -165px);
+  background: #000;
+}
+
+#app {
+  z-index: 1;
 }
 
 .native-mobile-only {
@@ -160,6 +166,26 @@ body.is-mobile .native-mobile-only {
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.5);
 }
 
+.native-video-actions {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
+
+.native-video-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  color: #ffffff;
+  text-decoration: none;
+  background: rgba(0, 126, 158, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  font-weight: 700;
+}
+
 .native-video-close {
   position: absolute;
   right: 8px;
@@ -186,7 +212,8 @@ body.is-mobile .native-mobile-only {
    touch-action:none for the 3D joystick, so explicitly restore native video behavior here. */
 .native-video-overlay,
 .native-video-overlay *,
-.native-video-card video {
+.native-video-card video,
+.native-video-actions a {
   touch-action: auto !important;
   pointer-events: auto;
 }
