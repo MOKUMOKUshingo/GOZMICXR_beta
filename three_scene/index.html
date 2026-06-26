@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Ocean Vibes 3D / VR / AR Scene</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="language-scene.css" />
+  <link rel="stylesheet" href="project-video-safe.css" />
 </head>
 <body>
   <div id="app"></div>
@@ -18,12 +20,24 @@
     </div>
   </div>
 
+  <div id="projectVideoPanel" class="project-video-panel" aria-live="polite">
+    <div id="projectVideoLabel" class="project-video-label">Project Movie</div>
+    <div id="projectVideoStatus" class="project-video-status">Waiting for video...</div>
+    <div class="project-video-actions">
+      <button type="button" id="playProjectMuted">Play video</button>
+      <button type="button" id="playProjectSound">Play with sound</button>
+      <button type="button" id="rewindProjectVideo">-10s</button>
+      <button type="button" id="forwardProjectVideo">+10s</button>
+      <button type="button" id="reloadProjectVideo">Retry</button>
+    </div>
+  </div>
+
   <div id="mobileControls" aria-hidden="true">
     <div id="stickBase"><div id="stickKnob"></div></div>
     <div id="mobileHint">DRAG TO LOOK</div>
   </div>
 
-  <video id="oceanVideo" src="../video/ocean-sea-wave-video.mp4" muted loop playsinline preload="auto"></video>
+  <video id="oceanVideo" src="../video/projectmovie1.mp4" poster="../img/title1-poster.jpg" muted loop playsinline webkit-playsinline preload="metadata"></video>
 
   <script type="importmap">
   {
@@ -33,6 +47,7 @@
     }
   }
   </script>
+  <script src="language-scene.js"></script>
   <script type="module" src="main.js"></script>
 </body>
 </html>

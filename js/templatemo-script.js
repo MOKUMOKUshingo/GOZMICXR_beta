@@ -243,10 +243,16 @@ $(document).ready(function () {
 
     btn.on("click", function (e) {
         const video = document.getElementById("tm-video");
+        const container = document.getElementById("tm-video-container");
+        if (!video || (container && (container.classList.contains("tm-video-failed") || container.classList.contains("tm-video-timeout")))) return;
+
         $(this).removeClass();
 
         if (video.paused) {
-            video.play();
+            const playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+                playPromise.catch(function () {});
+            }
             $(this).addClass("fas fa-pause");
         } else {
             video.pause();

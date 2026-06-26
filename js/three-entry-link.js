@@ -1,6 +1,7 @@
 (function () {
   const TARGET_CAPTION = "Chico's main fear was missing the morning bus.";
   const THREE_PAGE = 'three_scene/index.html';
+  const LANG_KEY = 'oceanVibesLang';
 
   function normalize(text) {
     return (text || '').replace(/\s+/g, ' ').trim();
@@ -14,13 +15,22 @@
         figure.classList.add('tm-three-entry');
         figure.setAttribute('tabindex', '0');
         figure.setAttribute('role', 'button');
-        figure.setAttribute('aria-label', 'Open the three.js 3D scene');
+        figure.setAttribute('aria-label', document.documentElement.lang === 'ja' ? 'three.js 3D空間を開く' : 'Open the three.js 3D scene');
       }
     });
   }
 
+  function getCurrentLang() {
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'ja' || saved === 'en') return saved;
+    } catch (e) {}
+    return document.documentElement.lang === 'ja' ? 'ja' : 'en';
+  }
+
   function openThreeScene() {
-    window.location.href = THREE_PAGE;
+    const separator = THREE_PAGE.indexOf('?') === -1 ? '?' : '&';
+    window.location.href = THREE_PAGE + separator + 'lang=' + encodeURIComponent(getCurrentLang());
   }
 
   document.addEventListener('DOMContentLoaded', markThreeEntrances);

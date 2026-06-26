@@ -1,0 +1,5 @@
+Place your large/optimized project movie here with this exact path and filename:
+
+  video/projectmovie1.mp4
+
+This ZIP intentionally does not include projectmovie1.mp4 because it is large.

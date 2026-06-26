@@ -1,0 +1,91 @@
+/* Project movie helper overlay for large in-scene videos. */
+.project-video-panel {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 7;
+  width: min(360px, calc(100vw - 36px));
+  color: #fff;
+  background: rgba(0, 27, 42, 0.66);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 18px;
+  padding: 14px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.28);
+  pointer-events: auto;
+}
+
+.project-video-label {
+  font-size: 12px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: #9be3ff;
+  margin-bottom: 6px;
+}
+
+.project-video-status {
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.86);
+  margin-bottom: 10px;
+}
+
+.project-video-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-video-actions #rewindProjectVideo,
+.project-video-actions #forwardProjectVideo {
+  min-width: 58px;
+}
+
+.project-video-actions button {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 92, 113, 0.78);
+  padding: 8px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.project-video-actions button:hover,
+.project-video-actions button:focus-visible {
+  background: rgba(0, 127, 155, 0.92);
+  outline: none;
+}
+
+.project-video-panel.is-playing .project-video-status {
+  color: #c6ffef;
+}
+
+.project-video-panel.is-error .project-video-status {
+  color: #ffd6d6;
+}
+
+body.in-vr .project-video-panel {
+  display: none;
+}
+
+body.in-ar .project-video-panel {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: auto;
+}
+
+@media (max-width: 760px) {
+  .project-video-panel {
+    left: 12px;
+    bottom: 126px;
+    width: min(360px, calc(100vw - 24px));
+    padding: 12px;
+  }
+  .project-video-actions button {
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+}

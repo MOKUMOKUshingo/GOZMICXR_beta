@@ -1,0 +1,55 @@
+/* English / Japanese language switcher */
+.tm-language-switcher {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: inline-flex;
+    gap: 6px;
+    padding: 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+    backdrop-filter: blur(8px);
+}
+
+.tm-lang-button {
+    border: 1px solid rgba(48, 154, 253, 0.35);
+    border-radius: 999px;
+    background: transparent;
+    color: #2d6f99;
+    cursor: pointer;
+    font: 700 13px/1 "Source Sans Pro", Arial, sans-serif;
+    letter-spacing: 0.02em;
+    padding: 8px 12px;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.tm-lang-button:hover {
+    transform: translateY(-1px);
+}
+
+.tm-lang-button.active {
+    background: #309AFD;
+    color: #ffffff;
+}
+
+body.tm-lang-ja .tm-page-title,
+body.tm-lang-ja .tm-nav-link,
+body.tm-lang-ja .tm-btn,
+body.tm-lang-ja .tm-gallery-link {
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 720px) {
+    .tm-language-switcher {
+        top: 10px;
+        right: 10px;
+        padding: 5px;
+    }
+
+    .tm-lang-button {
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+}

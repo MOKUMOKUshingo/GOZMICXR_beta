@@ -2,9 +2,105 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 
+const LANG_KEY = 'oceanVibesLang';
+const sceneTexts = {
+  en: {
+    titleSprite: "Chico's morning-bus fear opened this 3D ocean.",
+    vrGuide: ['VR MODE', 'Trigger: teleport  /  Thumbstick: move'],
+    arName: 'Ocean Vibes AR Mini Gallery',
+    arLabel: ['Ocean Vibes AR', 'tap a surface to place'],
+    vrButton: 'ENTER VR',
+    arButton: 'START AR',
+    videoLabel: 'PROJECT MOVIE',
+    videoWaiting: 'The large movie is not loaded yet. The poster is shown until the video can play.',
+    videoLoading: 'Loading projectmovie1.mp4... If it is hundreds of MB, this can take time.',
+    videoReady: 'Video metadata is ready. Press Play video or tap the movie screen.',
+    videoPlayingMuted: 'Playing muted in the 3D / VR / AR screen.',
+    videoPlayingSound: 'Playing with sound in the 3D / VR / AR screen.',
+    videoPaused: 'Paused. Press Play video or tap the movie screen to resume.',
+    videoBuffering: 'Buffering video data...',
+    videoError: 'projectmovie1.mp4 could not be played. Showing the poster instead.',
+    playMuted: 'Play video',
+    playSound: 'Play with sound',
+    retryVideo: 'Retry',
+    rewindVideo: '-10s',
+    forwardVideo: '+10s',
+    videoSeekingBack: 'Rewound 10 seconds.',
+    videoSeekingForward: 'Fast-forwarded 10 seconds.',
+    videoSeekUnknown: 'Video duration is not ready yet. Wait until metadata is loaded.',
+    video3DHelp: ['Project Movie', 'tap / trigger this screen to play']
+  },
+  ja: {
+    titleSprite: 'Chicoの写真から開いた3D海上空間。',
+    vrGuide: ['VRモード', 'トリガー：テレポート / スティック：移動'],
+    arName: 'Ocean Vibes AR ミニギャラリー',
+    arLabel: ['Ocean Vibes AR', '床や机をタップして配置'],
+    vrButton: 'VRに入る',
+    arButton: 'ARを開始',
+    videoLabel: 'PROJECT MOVIE',
+    videoWaiting: '大容量動画はまだ読み込んでいません。再生できるまではposter画像を表示します。',
+    videoLoading: 'projectmovie1.mp4を読み込み中です。数百MBある場合は時間がかかります。',
+    videoReady: '動画メタデータを確認しました。「映像を再生」または画面タップで再生できます。',
+    videoPlayingMuted: '3D / VR / AR空間内で無音再生中です。',
+    videoPlayingSound: '3D / VR / AR空間内で音声あり再生中です。',
+    videoPaused: '一時停止中です。再生ボタンまたは動画スクリーンを押すと再開します。',
+    videoBuffering: '動画データをバッファ中です。',
+    videoError: 'projectmovie1.mp4を再生できません。代わりにposter画像を表示しています。',
+    playMuted: '映像を再生',
+    playSound: '音声ありで再生',
+    retryVideo: '再読込',
+    rewindVideo: '-10秒',
+    forwardVideo: '+10秒',
+    videoSeekingBack: '10秒巻き戻しました。',
+    videoSeekingForward: '10秒早送りしました。',
+    videoSeekUnknown: '動画の長さをまだ取得できません。メタデータ読み込み後に操作できます。',
+    video3DHelp: ['Project Movie', 'タップ / トリガーで再生']
+  }
+};
+
+function getSceneLang() {
+  const fromUrl = new URLSearchParams(window.location.search).get('lang');
+  if (fromUrl === 'ja' || fromUrl === 'en') {
+    try { localStorage.setItem(LANG_KEY, fromUrl); } catch (e) {}
+    return fromUrl;
+  }
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (saved === 'ja' || saved === 'en') return saved;
+  } catch (e) {}
+  return (navigator.language || '').toLowerCase().startsWith('ja') ? 'ja' : 'en';
+}
+
+const sceneLang = getSceneLang();
+const tr = sceneTexts[sceneLang];
+const canvasFontFamily = sceneLang === 'ja' ? 'Arial, \"Hiragino Sans\", \"Yu Gothic\", sans-serif' : 'Arial';
+
+function setXRButtonLabels() {
+  if (sceneLang !== 'ja') return;
+  const vr = document.getElementById('VRButton');
+  const ar = document.getElementById('ARButton');
+  if (vr && /ENTER VR/i.test(vr.textContent)) vr.textContent = tr.vrButton;
+  if (ar && /START AR/i.test(ar.textContent)) ar.textContent = tr.arButton;
+}
+
+
 const app = document.getElementById('app');
 const hud = document.getElementById('hud');
 const mobileControls = document.getElementById('mobileControls');
+const projectVideoPanel = document.getElementById('projectVideoPanel');
+const projectVideoLabel = document.getElementById('projectVideoLabel');
+const projectVideoStatus = document.getElementById('projectVideoStatus');
+const playProjectMuted = document.getElementById('playProjectMuted');
+const playProjectSound = document.getElementById('playProjectSound');
+const rewindProjectVideo = document.getElementById('rewindProjectVideo');
+const forwardProjectVideo = document.getElementById('forwardProjectVideo');
+const reloadProjectVideo = document.getElementById('reloadProjectVideo');
+if (projectVideoLabel) projectVideoLabel.textContent = tr.videoLabel;
+if (playProjectMuted) playProjectMuted.textContent = tr.playMuted;
+if (playProjectSound) playProjectSound.textContent = tr.playSound;
+if (rewindProjectVideo) rewindProjectVideo.textContent = tr.rewindVideo;
+if (forwardProjectVideo) forwardProjectVideo.textContent = tr.forwardVideo;
+if (reloadProjectVideo) reloadProjectVideo.textContent = tr.retryVideo;
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia('(pointer: coarse)').matches;
 if (isMobile) document.body.classList.add('is-mobile');
 
@@ -52,6 +148,9 @@ arButton.addEventListener('click', () => {
   if (!renderer.xr.isPresenting) requestedXRMode = 'ar';
 });
 document.body.appendChild(arButton);
+setXRButtonLabels();
+setTimeout(setXRButtonLabels, 300);
+setTimeout(setXRButtonLabels, 1200);
 
 const hemi = new THREE.HemisphereLight(0x9fdfff, 0x08202d, 2.0);
 scene.add(hemi);
@@ -94,7 +193,7 @@ function makeTextSprite(text, options = {}) {
   ctx.lineWidth = 4;
   ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = options.font || '46px Arial';
+  ctx.font = options.font || `46px ${canvasFontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -131,17 +230,14 @@ grid.material.transparent = true;
 grid.material.opacity = 0.25;
 scene.add(grid);
 
-const title = makeTextSprite("Chico's morning-bus fear opened this 3D ocean.");
+const title = makeTextSprite(tr.titleSprite);
 title.position.set(0, 5.2, -8.5);
 scene.add(title);
 
-const vrGuide = makeTextSprite([
-  'VR MODE',
-  'Trigger: teleport  /  Thumbstick: move'
-], {
+const vrGuide = makeTextSprite(tr.vrGuide, {
   width: 1200,
   height: 320,
-  font: '44px Arial',
+  font: `44px ${canvasFontFamily}`,
   lineHeight: 62,
   scaleX: 7.6,
   scaleY: 2.05,
@@ -160,15 +256,291 @@ ring.position.set(0, 2.3, -7.0);
 portalGroup.add(ring);
 
 const video = document.getElementById('oceanVideo');
-video.play().catch(() => {});
-const videoTexture = new THREE.VideoTexture(video);
-videoTexture.colorSpace = THREE.SRGBColorSpace;
+video.muted = true;
+video.loop = true;
+video.playsInline = true;
+video.preload = 'metadata';
+
+const posterTexture = loader.load('../img/title1-poster.jpg');
+posterTexture.colorSpace = THREE.SRGBColorSpace;
+
+let videoTexture = null;
+let videoEverPlayed = false;
+let videoLoadTimer = null;
+const videoPlayObjects = [];
+const videoControlObjects = [];
+const videoInteractiveObjects = [];
+
+function addVideoInteractiveObject(object, action = 'toggle') {
+  object.userData.projectVideoAction = action;
+  videoInteractiveObjects.push(object);
+  if (action === 'toggle') videoPlayObjects.push(object);
+  else videoControlObjects.push(object);
+}
+
+function isObjectVisibleInScene(object) {
+  let current = object;
+  while (current) {
+    if (current.visible === false) return false;
+    current = current.parent;
+  }
+  return true;
+}
+
+function findProjectVideoAction(object) {
+  if (!isObjectVisibleInScene(object)) return null;
+  let current = object;
+  while (current) {
+    if (current.userData && current.userData.projectVideoAction) return current.userData.projectVideoAction;
+    current = current.parent;
+  }
+  return null;
+}
+
+function createParabolicScreenGeometry(width, height, widthSegments = 48, heightSegments = 28, depth = 0.42) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+
+  for (let y = 0; y <= heightSegments; y++) {
+    const v = y / heightSegments;
+    const py = (0.5 - v) * height;
+    const ny = (py / (height * 0.5));
+    for (let x = 0; x <= widthSegments; x++) {
+      const u = x / widthSegments;
+      const px = (u - 0.5) * width;
+      const nx = px / (width * 0.5);
+      const pz = depth * (nx * nx + 0.16 * ny * ny);
+      positions.push(px, py, pz);
+      uvs.push(u, 1 - v);
+    }
+  }
+
+  for (let y = 0; y < heightSegments; y++) {
+    for (let x = 0; x < widthSegments; x++) {
+      const a = y * (widthSegments + 1) + x;
+      const b = a + 1;
+      const c = a + (widthSegments + 1);
+      const d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  geometry.setIndex(indices);
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function makeVideoControlButton(label, action, width = 0.88, height = 0.32) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 180;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0, 62, 84, 0.86)';
+  roundRect(ctx, 18, 18, canvas.width - 36, canvas.height - 36, 58);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(155, 227, 255, 0.72)';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 58px ${canvasFontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+  mesh.name = `Project Movie Control: ${action}`;
+  mesh.userData.projectVideoAction = action;
+  return mesh;
+}
+
+const videoMaterial = new THREE.MeshBasicMaterial({
+  map: posterTexture,
+  toneMapped: false,
+  side: THREE.DoubleSide
+});
+let arVideoMaterial = null;
+
+function setProjectVideoStatus(message, state = '') {
+  if (!projectVideoStatus) return;
+  projectVideoStatus.textContent = message;
+  if (projectVideoPanel) {
+    projectVideoPanel.classList.toggle('is-playing', state === 'playing');
+    projectVideoPanel.classList.toggle('is-error', state === 'error');
+  }
+}
+
+function showPosterOnVideoScreens() {
+  videoMaterial.map = posterTexture;
+  videoMaterial.needsUpdate = true;
+  if (arVideoMaterial) {
+    arVideoMaterial.map = posterTexture;
+    arVideoMaterial.needsUpdate = true;
+  }
+}
+
+function ensureVideoTexture() {
+  if (!videoTexture) {
+    videoTexture = new THREE.VideoTexture(video);
+    videoTexture.colorSpace = THREE.SRGBColorSpace;
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.generateMipmaps = false;
+  }
+  videoMaterial.map = videoTexture;
+  videoMaterial.needsUpdate = true;
+  if (arVideoMaterial) {
+    arVideoMaterial.map = videoTexture;
+    arVideoMaterial.needsUpdate = true;
+  }
+}
+
+async function startProjectVideo(withSound = false, source = 'manual') {
+  if (!video) return false;
+  clearTimeout(videoLoadTimer);
+  video.muted = !withSound;
+  video.volume = withSound ? 1.0 : 0.0;
+  setProjectVideoStatus(tr.videoLoading, 'loading');
+  try {
+    if (video.readyState === 0) video.load();
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.then === 'function') await playPromise;
+    ensureVideoTexture();
+    videoEverPlayed = true;
+    setProjectVideoStatus(withSound ? tr.videoPlayingSound : tr.videoPlayingMuted, 'playing');
+    return true;
+  } catch (error) {
+    showPosterOnVideoScreens();
+    const blocked = source === 'auto';
+    setProjectVideoStatus(blocked ? tr.videoWaiting : tr.videoError, blocked ? '' : 'error');
+    return false;
+  }
+}
+
+function toggleProjectVideo(withSound = false) {
+  if (!video) return;
+  if (video.paused || video.ended) {
+    startProjectVideo(withSound, 'manual');
+  } else {
+    video.pause();
+    setProjectVideoStatus(tr.videoPaused, '');
+  }
+}
+
+function seekProjectVideo(seconds) {
+  if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
+    setProjectVideoStatus(tr.videoSeekUnknown, '');
+    if (video && video.readyState === 0) video.load();
+    return;
+  }
+  const nextTime = THREE.MathUtils.clamp((video.currentTime || 0) + seconds, 0, Math.max(0, video.duration - 0.05));
+  try {
+    video.currentTime = nextTime;
+    ensureVideoTexture();
+    setProjectVideoStatus(seconds < 0 ? tr.videoSeekingBack : tr.videoSeekingForward, video.paused ? '' : 'playing');
+  } catch (error) {
+    setProjectVideoStatus(tr.videoSeekUnknown, '');
+  }
+}
+
+function runProjectVideoAction(action, withSound = false) {
+  if (action === 'rewind') {
+    seekProjectVideo(-10);
+  } else if (action === 'forward') {
+    seekProjectVideo(10);
+  } else if (action === 'sound') {
+    startProjectVideo(true, 'manual');
+  } else {
+    toggleProjectVideo(withSound);
+  }
+}
+
+function reloadProjectMovie() {
+  if (!video) return;
+  clearTimeout(videoLoadTimer);
+  video.pause();
+  try { video.currentTime = 0; } catch (e) {}
+  video.load();
+  showPosterOnVideoScreens();
+  setProjectVideoStatus(tr.videoLoading, 'loading');
+  startProjectVideo(false, 'manual');
+}
+
+if (playProjectMuted) playProjectMuted.addEventListener('click', () => startProjectVideo(false, 'manual'));
+if (playProjectSound) playProjectSound.addEventListener('click', () => startProjectVideo(true, 'manual'));
+if (rewindProjectVideo) rewindProjectVideo.addEventListener('click', () => seekProjectVideo(-10));
+if (forwardProjectVideo) forwardProjectVideo.addEventListener('click', () => seekProjectVideo(10));
+if (reloadProjectVideo) reloadProjectVideo.addEventListener('click', reloadProjectMovie);
+
+video.addEventListener('loadedmetadata', () => {
+  if (!videoEverPlayed) setProjectVideoStatus(tr.videoReady, '');
+});
+video.addEventListener('loadeddata', ensureVideoTexture);
+video.addEventListener('canplay', () => {
+  if (!videoEverPlayed && video.paused) setProjectVideoStatus(tr.videoReady, '');
+});
+video.addEventListener('playing', () => {
+  ensureVideoTexture();
+  setProjectVideoStatus(video.muted ? tr.videoPlayingMuted : tr.videoPlayingSound, 'playing');
+});
+video.addEventListener('waiting', () => setProjectVideoStatus(tr.videoBuffering, 'loading'));
+video.addEventListener('stalled', () => setProjectVideoStatus(tr.videoBuffering, 'loading'));
+video.addEventListener('pause', () => {
+  if (!video.ended && videoEverPlayed) setProjectVideoStatus(tr.videoPaused, '');
+});
+video.addEventListener('error', () => {
+  showPosterOnVideoScreens();
+  setProjectVideoStatus(tr.videoError, 'error');
+});
+
+setProjectVideoStatus(tr.videoWaiting, '');
+videoLoadTimer = setTimeout(() => {
+  if (!videoEverPlayed) setProjectVideoStatus(tr.videoWaiting, '');
+}, 7000);
+setTimeout(() => startProjectVideo(false, 'auto'), 350);
+
 const videoScreen = new THREE.Mesh(
-  new THREE.PlaneGeometry(4.1, 2.3),
-  new THREE.MeshBasicMaterial({ map: videoTexture, toneMapped: false, side: THREE.DoubleSide })
+  createParabolicScreenGeometry(4.45, 2.50, 64, 36, 0.50),
+  videoMaterial
 );
-videoScreen.position.set(0, 2.3, -7.03);
+videoScreen.name = 'Project Movie Parabolic Screen';
+videoScreen.position.set(0, 2.3, -7.16);
 portalGroup.add(videoScreen);
+addVideoInteractiveObject(videoScreen, 'toggle');
+
+const rewindButton3D = makeVideoControlButton(tr.rewindVideo, 'rewind');
+rewindButton3D.position.set(-1.18, 0.33, -6.86);
+portalGroup.add(rewindButton3D);
+addVideoInteractiveObject(rewindButton3D, 'rewind');
+
+const playButton3D = makeVideoControlButton('PLAY', 'toggle', 0.98, 0.32);
+playButton3D.position.set(0, 0.33, -6.86);
+portalGroup.add(playButton3D);
+addVideoInteractiveObject(playButton3D, 'toggle');
+
+const forwardButton3D = makeVideoControlButton(tr.forwardVideo, 'forward');
+forwardButton3D.position.set(1.18, 0.33, -6.86);
+portalGroup.add(forwardButton3D);
+addVideoInteractiveObject(forwardButton3D, 'forward');
+
+const videoHelp = makeTextSprite(tr.video3DHelp, {
+  width: 1000,
+  height: 260,
+  font: `46px ${canvasFontFamily}`,
+  lineHeight: 58,
+  scaleX: 3.55,
+  scaleY: 0.92,
+  background: 'rgba(0, 20, 32, 0.70)'
+});
+videoHelp.position.set(0, 0.72, -7.0);
+portalGroup.add(videoHelp);
 
 const cards = [];
 const cardBacks = [];
@@ -226,7 +598,7 @@ function setVRSceneVisible(visible) {
 }
 
 const arContent = new THREE.Group();
-arContent.name = 'Ocean Vibes AR Mini Gallery';
+arContent.name = tr.arName;
 arContent.visible = false;
 scene.add(arContent);
 
@@ -254,17 +626,41 @@ const arPortalRing = new THREE.Mesh(
 );
 arPortal.add(arPortalRing);
 
+arVideoMaterial = new THREE.MeshBasicMaterial({
+  map: videoTexture || posterTexture,
+  toneMapped: false,
+  transparent: true,
+  opacity: 0.96,
+  side: THREE.DoubleSide
+});
 const arVideoScreen = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.56, 0.315),
-  new THREE.MeshBasicMaterial({ map: videoTexture, toneMapped: false, transparent: true, opacity: 0.96, side: THREE.DoubleSide })
+  createParabolicScreenGeometry(0.58, 0.326, 32, 18, 0.055),
+  arVideoMaterial
 );
-arVideoScreen.position.z = -0.006;
+arVideoScreen.name = 'Project Movie AR Parabolic Screen';
+arVideoScreen.position.z = -0.035;
 arPortal.add(arVideoScreen);
+addVideoInteractiveObject(arVideoScreen, 'toggle');
 
-const arLabel = makeTextSprite(['Ocean Vibes AR', 'tap a surface to place'], {
+const arRewindButton = makeVideoControlButton(tr.rewindVideo, 'rewind', 0.18, 0.064);
+arRewindButton.position.set(-0.215, -0.245, 0.018);
+arPortal.add(arRewindButton);
+addVideoInteractiveObject(arRewindButton, 'rewind');
+
+const arPlayButton = makeVideoControlButton('▶', 'toggle', 0.18, 0.064);
+arPlayButton.position.set(0, -0.245, 0.018);
+arPortal.add(arPlayButton);
+addVideoInteractiveObject(arPlayButton, 'toggle');
+
+const arForwardButton = makeVideoControlButton(tr.forwardVideo, 'forward', 0.18, 0.064);
+arForwardButton.position.set(0.215, -0.245, 0.018);
+arPortal.add(arForwardButton);
+addVideoInteractiveObject(arForwardButton, 'forward');
+
+const arLabel = makeTextSprite(tr.arLabel, {
   width: 1024,
   height: 300,
-  font: '54px Arial',
+  font: `54px ${canvasFontFamily}`,
   lineHeight: 66,
   scaleX: 0.9,
   scaleY: 0.26,
@@ -397,10 +793,20 @@ for (let i = 0; i < 2; i++) {
   });
   controller.addEventListener('selectend', () => {
     if (currentXRMode === 'ar') {
-      placeARContent();
+      const arAction = arContent.visible ? getProjectVideoActionFromController(controller) : null;
+      if (arAction) {
+        runProjectVideoAction(arAction, false);
+      } else {
+        placeARContent();
+      }
       return;
     }
-    if (controller.userData.hasTeleportPoint) teleportTo(controller.userData.teleportPoint);
+    const vrAction = getProjectVideoActionFromController(controller);
+    if (vrAction) {
+      runProjectVideoAction(vrAction, false);
+    } else if (controller.userData.hasTeleportPoint) {
+      teleportTo(controller.userData.teleportPoint);
+    }
     controller.userData.selecting = false;
     controller.userData.hasTeleportPoint = false;
     teleportMarker.visible = false;
@@ -410,8 +816,58 @@ for (let i = 0; i < 2; i++) {
   controllers.push(controller);
 }
 
+const videoRaycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+const xrRayMatrix = new THREE.Matrix4();
+
+function getProjectVideoActionFromCamera(clientX, clientY) {
+  if (renderer.xr.isPresenting) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  videoRaycaster.setFromCamera(pointerNDC, camera);
+  const hits = videoRaycaster.intersectObjects(videoInteractiveObjects, true);
+  for (const hit of hits) {
+    const action = findProjectVideoAction(hit.object);
+    if (action) return action;
+  }
+  return null;
+}
+
+function getProjectVideoActionFromController(controller) {
+  xrRayMatrix.identity().extractRotation(controller.matrixWorld);
+  videoRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  videoRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrRayMatrix).normalize();
+  const hits = videoRaycaster.intersectObjects(videoInteractiveObjects, true);
+  for (const hit of hits) {
+    const action = findProjectVideoAction(hit.object);
+    if (action) return action;
+  }
+  return null;
+}
+
+let pointerDownVideoAction = null;
+
 const keys = new Set();
-window.addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
+window.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  if (!renderer.xr.isPresenting && key === 'j') {
+    e.preventDefault();
+    seekProjectVideo(-10);
+    return;
+  }
+  if (!renderer.xr.isPresenting && key === 'l') {
+    e.preventDefault();
+    seekProjectVideo(10);
+    return;
+  }
+  if (!renderer.xr.isPresenting && key === 'k') {
+    e.preventDefault();
+    toggleProjectVideo(false);
+    return;
+  }
+  keys.add(key);
+});
 window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 
 let yaw = 0;
@@ -423,12 +879,20 @@ let lastY = 0;
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (renderer.xr.isPresenting) return;
   if (e.target.closest && e.target.closest('#stickBase')) return;
+  pointerDownVideoAction = getProjectVideoActionFromCamera(e.clientX, e.clientY);
   pointerActive = true;
   lastX = e.clientX;
   lastY = e.clientY;
 });
 
-window.addEventListener('pointerup', () => { pointerActive = false; });
+window.addEventListener('pointerup', (e) => {
+  const pointerUpAction = getProjectVideoActionFromCamera(e.clientX, e.clientY);
+  if (pointerActive && pointerDownVideoAction && pointerUpAction === pointerDownVideoAction) {
+    runProjectVideoAction(pointerUpAction, false);
+  }
+  pointerActive = false;
+  pointerDownVideoAction = null;
+});
 window.addEventListener('pointermove', (e) => {
   if (!pointerActive || renderer.xr.isPresenting) return;
   const dx = e.clientX - lastX;
@@ -488,6 +952,10 @@ function clampPlayerPosition() {
   player.position.z = THREE.MathUtils.clamp(player.position.z, -boundaryRadius, 16);
 }
 
+const desktopForwardVec = new THREE.Vector3();
+const desktopSideVec = new THREE.Vector3();
+const worldUpVec = new THREE.Vector3(0, 1, 0);
+
 function updateDesktopMovement(delta) {
   const speed = 4.4;
   let forward = 0;
@@ -503,10 +971,14 @@ function updateDesktopMovement(delta) {
     forward += -stick.y;
   }
 
-  const forwardVec = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
-  const sideVec = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
-  player.position.addScaledVector(forwardVec, forward * speed * delta);
-  player.position.addScaledVector(sideVec, side * speed * delta);
+  camera.getWorldDirection(desktopForwardVec);
+  desktopForwardVec.y = 0;
+  if (desktopForwardVec.lengthSq() < 0.0001) desktopForwardVec.set(0, 0, -1);
+  desktopForwardVec.normalize();
+  desktopSideVec.crossVectors(desktopForwardVec, worldUpVec).normalize();
+
+  player.position.addScaledVector(desktopForwardVec, forward * speed * delta);
+  player.position.addScaledVector(desktopSideVec, side * speed * delta);
   clampPlayerPosition();
 }
 
@@ -601,6 +1073,7 @@ renderer.xr.addEventListener('sessionstart', () => {
     setVRSceneVisible(false);
     arContent.visible = false;
     arReticle.visible = false;
+    startProjectVideo(false, 'auto');
   } else {
     scene.background = defaultBackground;
     scene.fog = defaultFog;
@@ -608,6 +1081,7 @@ renderer.xr.addEventListener('sessionstart', () => {
     setVRSceneVisible(true);
     arContent.visible = false;
     arReticle.visible = false;
+    startProjectVideo(false, 'auto');
   }
 });
 
@@ -645,8 +1119,9 @@ function animate(timestamp, frame) {
     });
     if (!anyTeleport) teleportMarker.visible = false;
   } else {
-    updateDesktopMovement(delta);
     camera.rotation.set(pitch, yaw, 0);
+    camera.updateMatrixWorld(true);
+    updateDesktopMovement(delta);
   }
 
   floor.position.y = -1.03 + Math.sin(t * 0.9) * 0.025;

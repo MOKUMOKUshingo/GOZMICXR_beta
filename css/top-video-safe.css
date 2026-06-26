@@ -1,0 +1,109 @@
+/* Safe top video loading / fallback / sound controls */
+#tm-video-container {
+    background-image: url('../img/title1-poster.jpg');
+    background-size: cover;
+    background-position: center;
+}
+
+#tm-video {
+    display: block;
+    object-fit: cover;
+}
+
+#tm-video-container.tm-video-failed #tm-video,
+#tm-video-container.tm-video-timeout #tm-video {
+    opacity: 0;
+}
+
+.tm-video-status {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.56);
+    color: #fff;
+    line-height: 1.4;
+    font-size: 0.98rem;
+    letter-spacing: 0.02em;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+    backdrop-filter: blur(8px);
+}
+
+#tm-video-container.tm-video-ready #tm-video-loading-overlay,
+#tm-video-container.tm-video-failed #tm-video-loading-overlay,
+#tm-video-container.tm-video-timeout #tm-video-loading-overlay {
+    display: none;
+}
+
+.tm-video-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    animation: tmVideoSpin 0.85s linear infinite;
+    flex: 0 0 auto;
+}
+
+@keyframes tmVideoSpin {
+    to { transform: rotate(360deg); }
+}
+
+.tm-video-sound-button {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    z-index: 1002;
+    border: 1px solid rgba(255,255,255,0.55);
+    border-radius: 999px;
+    padding: 10px 16px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.48);
+    font-family: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.tm-video-sound-button:hover,
+.tm-video-sound-button:focus {
+    background: rgba(0, 0, 0, 0.7);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+#tm-video-container.tm-video-failed .tm-video-sound-button,
+#tm-video-container.tm-video-timeout .tm-video-sound-button {
+    display: none;
+}
+
+#tm-video-control-button {
+    cursor: pointer;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+
+@media (max-width: 650px) {
+    .tm-video-status {
+        width: calc(100% - 40px);
+        justify-content: center;
+        text-align: center;
+        border-radius: 18px;
+        font-size: 0.9rem;
+    }
+
+    .tm-video-sound-button {
+        left: 14px;
+        bottom: 14px;
+        max-width: calc(100% - 78px);
+        white-space: normal;
+        line-height: 1.25;
+    }
+}

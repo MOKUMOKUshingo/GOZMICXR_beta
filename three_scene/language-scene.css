@@ -1,0 +1,47 @@
+.scene-language-switcher {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 9;
+  display: inline-flex;
+  gap: 6px;
+  padding: 7px;
+  border-radius: 999px;
+  background: rgba(0, 33, 50, 0.58);
+  border: 1px solid rgba(255,255,255,0.22);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.scene-lang-button {
+  border: 1px solid rgba(255,255,255,0.38);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255,255,255,0.84);
+  cursor: pointer;
+  font: 700 12px/1 Arial, Helvetica, sans-serif;
+  letter-spacing: 0.03em;
+  padding: 8px 11px;
+}
+
+.scene-lang-button.active {
+  background: rgba(155, 227, 255, 0.92);
+  color: #03304a;
+}
+
+body.in-vr .scene-language-switcher,
+body.in-ar .scene-language-switcher {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .scene-language-switcher {
+    top: 12px;
+    right: 12px;
+    padding: 5px;
+  }
+  .scene-lang-button {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+}
