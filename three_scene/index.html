@@ -26,6 +26,7 @@
     <div class="project-video-actions">
       <button type="button" id="playProjectMuted">Play video</button>
       <button type="button" id="playProjectSound">Play with sound</button>
+      <button type="button" id="openNativeProjectVideo" class="native-mobile-only">Mobile player</button>
       <button type="button" id="rewindProjectVideo">-10s</button>
       <button type="button" id="forwardProjectVideo">+10s</button>
       <button type="button" id="reloadProjectVideo">Retry</button>
@@ -35,6 +36,14 @@
   <div id="mobileControls" aria-hidden="true">
     <div id="stickBase"><div id="stickKnob"></div></div>
     <div id="mobileHint">DRAG TO LOOK</div>
+  </div>
+
+  <div id="nativeVideoOverlay" class="native-video-overlay" hidden aria-hidden="true">
+    <div class="native-video-card">
+      <button type="button" id="closeNativeVideo" class="native-video-close" aria-label="Close video">×</button>
+      <video id="nativeProjectVideo" src="../video/projectmovie1.mp4" poster="../img/title1-poster.jpg" controls playsinline webkit-playsinline preload="metadata"></video>
+      <p id="nativeVideoNote">スマホで3D内再生できない場合は、このネイティブ再生で確認できます。</p>
+    </div>
   </div>
 
   <video id="oceanVideo" src="../video/projectmovie1.mp4" poster="../img/title1-poster.jpg" muted loop playsinline webkit-playsinline preload="metadata"></video>

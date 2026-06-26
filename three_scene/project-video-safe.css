@@ -107,3 +107,76 @@ body.in-ar .project-video-panel {
     flex: 1 1 140px;
   }
 }
+
+
+/* Keep the WebGL source video alive for VideoTexture / CanvasTexture,
+   while preventing it from covering the three.js canvas. */
+#oceanVideo {
+  position: fixed;
+  left: -8px;
+  bottom: -8px;
+  width: 2px;
+  height: 2px;
+  opacity: 0.01;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.native-mobile-only {
+  display: none;
+}
+
+body.is-mobile .native-mobile-only {
+  display: inline-flex;
+}
+
+.native-video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(7px);
+}
+
+.native-video-overlay[hidden] {
+  display: none !important;
+}
+
+.native-video-card {
+  position: relative;
+  width: min(960px, 100%);
+  color: #fff;
+}
+
+.native-video-card video {
+  width: 100%;
+  max-height: 78vh;
+  background: #000;
+  border-radius: 16px;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.5);
+}
+
+.native-video-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  font-size: 28px;
+  line-height: 42px;
+}
+
+#nativeVideoNote {
+  margin: 9px 4px 0;
+  font-size: 13px;
+  color: rgba(255,255,255,0.82);
+}
