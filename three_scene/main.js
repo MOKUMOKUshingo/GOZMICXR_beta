@@ -405,8 +405,20 @@ function ensureVideoTexture() {
 async function startProjectVideo(withSound = false, source = 'manual') {
   if (!video) return false;
   clearTimeout(videoLoadTimer);
-  video.muted = !withSound;
-  video.volume = withSound ? 1.0 : 0.0;
+
+  // Browsers allow muted autoplay, but sound usually needs a user gesture.
+  // XR select / trigger is a user gesture, so when withSound=true we explicitly
+  // remove the muted attribute as well as the muted property.
+  if (withSound) {
+    video.muted = false;
+    video.removeAttribute('muted');
+    video.volume = 1.0;
+  } else {
+    video.muted = true;
+    video.setAttribute('muted', '');
+    video.volume = 0.0;
+  }
+
   setProjectVideoStatus(tr.videoLoading, 'loading');
   try {
     if (video.readyState === 0) video.load();
@@ -417,6 +429,23 @@ async function startProjectVideo(withSound = false, source = 'manual') {
     setProjectVideoStatus(withSound ? tr.videoPlayingSound : tr.videoPlayingMuted, 'playing');
     return true;
   } catch (error) {
+    // If sound playback was blocked, keep a safe muted fallback instead of
+    // leaving the XR screen black or stopped.
+    if (withSound && source !== 'auto') {
+      try {
+        video.muted = true;
+        video.setAttribute('muted', '');
+        video.volume = 0.0;
+        const mutedPlayPromise = video.play();
+        if (mutedPlayPromise && typeof mutedPlayPromise.then === 'function') await mutedPlayPromise;
+        ensureVideoTexture();
+        videoEverPlayed = true;
+        setProjectVideoStatus(tr.videoPlayingMuted, 'playing');
+        return true;
+      } catch (mutedError) {
+        // fall through to poster fallback
+      }
+    }
     showPosterOnVideoScreens();
     const blocked = source === 'auto';
     setProjectVideoStatus(blocked ? tr.videoWaiting : tr.videoError, blocked ? '' : 'error');
@@ -428,6 +457,10 @@ function toggleProjectVideo(withSound = false) {
   if (!video) return;
   if (video.paused || video.ended) {
     startProjectVideo(withSound, 'manual');
+  } else if (withSound && video.muted) {
+    // In VR, the user often starts with muted autoplay.
+    // A trigger press on the screen should promote it to sound, not pause it.
+    startProjectVideo(true, 'xr-select');
   } else {
     video.pause();
     setProjectVideoStatus(tr.videoPaused, '');
@@ -451,14 +484,15 @@ function seekProjectVideo(seconds) {
 }
 
 function runProjectVideoAction(action, withSound = false) {
+  const wantsXRSound = currentXRMode === 'vr' || currentXRMode === 'ar';
   if (action === 'rewind') {
     seekProjectVideo(-10);
   } else if (action === 'forward') {
     seekProjectVideo(10);
   } else if (action === 'sound') {
-    startProjectVideo(true, 'manual');
+    startProjectVideo(true, wantsXRSound ? 'xr-select' : 'manual');
   } else {
-    toggleProjectVideo(withSound);
+    toggleProjectVideo(withSound || wantsXRSound);
   }
 }
 
@@ -642,6 +676,18 @@ arVideoScreen.position.z = -0.035;
 arPortal.add(arVideoScreen);
 addVideoInteractiveObject(arVideoScreen, 'toggle');
 
+// AR controller/screen-tap rays are less precise than desktop mouse rays.
+// Add a transparent, slightly larger touch target so a trigger aimed at the
+// mini screen reliably toggles the movie.
+const arVideoHitTarget = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.76, 0.50),
+  new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.001, depthWrite: false, side: THREE.DoubleSide })
+);
+arVideoHitTarget.name = 'Project Movie AR Large Hit Target';
+arVideoHitTarget.position.z = 0.035;
+arPortal.add(arVideoHitTarget);
+addVideoInteractiveObject(arVideoHitTarget, 'toggle');
+
 const arRewindButton = makeVideoControlButton(tr.rewindVideo, 'rewind', 0.18, 0.064);
 arRewindButton.position.set(-0.215, -0.245, 0.018);
 arPortal.add(arRewindButton);
@@ -742,14 +788,35 @@ function updateARHitTest(frame) {
 const arCameraWorld = new THREE.Vector3();
 const arPlacePosition = new THREE.Vector3();
 
+function orientARContentTowardCamera() {
+  renderer.xr.getCamera(camera).getWorldPosition(arCameraWorld);
+  arContent.lookAt(arCameraWorld.x, arContent.position.y, arCameraWorld.z);
+}
+
 function placeARContent() {
-  if (currentXRMode !== 'ar' || !arReticle.visible) return;
+  if (currentXRMode !== 'ar' || !arReticle.visible) return false;
   arPlacePosition.setFromMatrixPosition(arReticle.matrix);
   arContent.position.copy(arPlacePosition);
   arContent.position.y += 0.015;
-  renderer.xr.getCamera(camera).getWorldPosition(arCameraWorld);
-  arContent.lookAt(arCameraWorld.x, arContent.position.y, arCameraWorld.z);
+  orientARContentTowardCamera();
   arContent.visible = true;
+  return true;
+}
+
+function placeARContentInFrontOfCamera() {
+  if (currentXRMode !== 'ar') return false;
+  const xrCamera = renderer.xr.getCamera(camera);
+  const forward = new THREE.Vector3();
+  xrCamera.getWorldPosition(arCameraWorld);
+  xrCamera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
+  forward.normalize();
+  arContent.position.copy(arCameraWorld).addScaledVector(forward, 1.15);
+  arContent.position.y = Math.max(arCameraWorld.y - 0.55, -0.2);
+  orientARContentTowardCamera();
+  arContent.visible = true;
+  return true;
 }
 
 const boundaryRadius = 19.5;
@@ -788,22 +855,32 @@ for (let i = 0; i < 2; i++) {
   controller.add(handle);
 
   controller.addEventListener('selectstart', () => {
-    if (currentXRMode === 'ar') return;
+    if (currentXRMode === 'ar') {
+      controller.userData.selecting = true;
+      return;
+    }
     controller.userData.selecting = true;
   });
   controller.addEventListener('selectend', () => {
     if (currentXRMode === 'ar') {
-      const arAction = arContent.visible ? getProjectVideoActionFromController(controller) : null;
+      const arAction = arContent.visible ? getProjectVideoActionFromController(controller, true) : null;
       if (arAction) {
-        runProjectVideoAction(arAction, false);
+        runProjectVideoAction(arAction, true);
+      } else if (!arContent.visible) {
+        const placed = placeARContent();
+        if (!placed) placeARContentInFrontOfCamera();
       } else {
-        placeARContent();
+        // If the mini gallery is already visible and the trigger missed the
+        // small screen, keep the content usable by re-orienting it toward the
+        // current camera instead of doing nothing.
+        orientARContentTowardCamera();
       }
+      controller.userData.selecting = false;
       return;
     }
     const vrAction = getProjectVideoActionFromController(controller);
     if (vrAction) {
-      runProjectVideoAction(vrAction, false);
+      runProjectVideoAction(vrAction, true);
     } else if (controller.userData.hasTeleportPoint) {
       teleportTo(controller.userData.teleportPoint);
     }
@@ -834,16 +911,29 @@ function getProjectVideoActionFromCamera(clientX, clientY) {
   return null;
 }
 
-function getProjectVideoActionFromController(controller) {
-  xrRayMatrix.identity().extractRotation(controller.matrixWorld);
-  videoRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-  videoRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrRayMatrix).normalize();
+function findActionFromCurrentRaycaster() {
   const hits = videoRaycaster.intersectObjects(videoInteractiveObjects, true);
   for (const hit of hits) {
     const action = findProjectVideoAction(hit.object);
     if (action) return action;
   }
   return null;
+}
+
+function getProjectVideoActionFromXRViewCenter() {
+  const xrCamera = renderer.xr.getCamera(camera);
+  videoRaycaster.ray.origin.setFromMatrixPosition(xrCamera.matrixWorld);
+  xrCamera.getWorldDirection(videoRaycaster.ray.direction).normalize();
+  return findActionFromCurrentRaycaster();
+}
+
+function getProjectVideoActionFromController(controller, allowViewCenterFallback = false) {
+  xrRayMatrix.identity().extractRotation(controller.matrixWorld);
+  videoRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  videoRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrRayMatrix).normalize();
+  const controllerAction = findActionFromCurrentRaycaster();
+  if (controllerAction) return controllerAction;
+  return allowViewCenterFallback ? getProjectVideoActionFromXRViewCenter() : null;
 }
 
 let pointerDownVideoAction = null;
@@ -1013,7 +1103,9 @@ function updateXRMovement(delta) {
   tmpDirection.y = 0;
   if (tmpDirection.lengthSq() < 0.001) tmpDirection.set(0, 0, -1);
   tmpDirection.normalize();
-  tmpSide.set(tmpDirection.z, 0, -tmpDirection.x).normalize();
+  // Use the same handedness as desktop WASD: stick-left moves left, stick-right moves right.
+  // The previous tmpSide formula produced the opposite horizontal direction on the left controller.
+  tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
 
   const speed = 2.2;
   player.position.addScaledVector(tmpDirection, -axes.y * speed * delta);
