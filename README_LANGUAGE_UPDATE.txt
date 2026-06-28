@@ -1,7 +1,7 @@
 Language switch update
 ======================
 
-Added English / Japanese language switching while preserving the existing COZMIX Space Vibes structure, Chico photo -> three.js transition, VR mode, AR mode, and the top-page video swap.
+Added English / Japanese language switching while preserving the existing COZMIX Space structure, Chico photo -> three.js transition, VR mode, AR mode, and the top-page video swap.
 
 Main additions:
 - css/language-switcher.css

@@ -9,8 +9,8 @@ const sceneTexts = {
   en: {
     titleSprite: "Chico's morning-bus fear opened this 3D COZMIX Space.",
     vrGuide: ['VR MODE', 'Left stick: move only', 'Right stick: turn only / A or stick-click: jump / Trigger: select'],
-    arName: 'COZMIX Space Vibes AR Mini Gallery',
-    arLabel: ['COZMIX Space Vibes AR', 'tap a surface to place'],
+    arName: 'COZMIX Space AR Mini Gallery',
+    arLabel: ['COZMIX Space AR', 'tap a surface to place'],
     vrButton: 'ENTER VR',
     arButton: 'START AR',
     cameraARButton: 'CAMERA AR',
@@ -39,8 +39,8 @@ const sceneTexts = {
   ja: {
     titleSprite: 'Chicoの写真から開いた3D海上空間。',
     vrGuide: ['VRモード', '左スティック：並進のみ', '右スティック：回転のみ / A・スティック押込：ジャンプ / トリガー：選択'],
-    arName: 'COZMIX Space Vibes AR ミニギャラリー',
-    arLabel: ['COZMIX Space Vibes AR', '床や机をタップして配置'],
+    arName: 'COZMIX Space AR ミニギャラリー',
+    arLabel: ['COZMIX Space AR', '床や机をタップして配置'],
     vrButton: 'VRに入る',
     arButton: 'ARを開始',
     cameraARButton: 'カメラAR',
@@ -299,16 +299,14 @@ let selectedNativeProjectVideoSrc = PROJECT_VIDEO_SRC;
 let webVideoFallbackAvailable = false;
 
 function shouldUseProjectMovieSource() {
-  // In VR / AR, always use projectmovie1.mp4 as requested.
-  return renderer.xr.isPresenting || currentXRMode === 'vr' || currentXRMode === 'ar';
+  // The in-scene three.js / VR / AR screen must always use projectmovie1.mp4.
+  return true;
 }
 
 function chooseSceneVideoSource() {
-  if (shouldUseProjectMovieSource()) return PROJECT_VIDEO_SRC;
-  // PC Web and smartphone Web may fall back to projectmovie1_mobile.mp4.
-  // This is only for non-XR Web playback, to avoid desktop black-screen cases
-  // caused by unsupported MP4 video codecs while keeping XR on projectmovie1.mp4.
-  return webVideoFallbackAvailable ? PROJECT_VIDEO_MOBILE_SRC : PROJECT_VIDEO_SRC;
+  // Keep the 3D screen source fixed. projectmovie1_mobile.mp4 is used only by
+  // the optional smartphone native player, never by the VR/AR/3D screen.
+  return PROJECT_VIDEO_SRC;
 }
 
 function setProjectSceneVideoSource(src = PROJECT_VIDEO_SRC) {
@@ -346,9 +344,9 @@ async function canUseVideoFile(url) {
 
 async function initializeProjectVideoSource() {
   webVideoFallbackAvailable = await canUseVideoFile(PROJECT_VIDEO_MOBILE_SRC);
-  const sceneSrc = chooseSceneVideoSource();
-  const nativeSrc = (isMobile && webVideoFallbackAvailable) ? PROJECT_VIDEO_MOBILE_SRC : sceneSrc;
-  setProjectSceneVideoSource(sceneSrc);
+  const sceneSrc = PROJECT_VIDEO_SRC;
+  const nativeSrc = (isMobile && webVideoFallbackAvailable) ? PROJECT_VIDEO_MOBILE_SRC : PROJECT_VIDEO_SRC;
+  setProjectSceneVideoSource(PROJECT_VIDEO_SRC);
   setNativeProjectVideoSource(nativeSrc);
   try { video.load(); } catch (e) {}
   try { if (nativeProjectVideo) nativeProjectVideo.load(); } catch (e) {}
@@ -358,7 +356,7 @@ async function initializeProjectVideoSource() {
 video.muted = true;
 video.loop = true;
 video.playsInline = true;
-video.controls = true;
+video.controls = false;
 video.setAttribute('playsinline', '');
 video.setAttribute('webkit-playsinline', '');
 video.preload = 'auto';
@@ -488,6 +486,7 @@ function setProjectVideoStatus(message, state = '') {
 }
 
 function showPosterOnVideoScreens() {
+  showDesktopVideoOverlay(false);
   videoMaterial.map = posterTexture;
   videoMaterial.needsUpdate = true;
   if (arVideoMaterial) {
@@ -582,14 +581,14 @@ function sampleVideoFrameLooksBlack() {
 }
 
 function maybeFallbackFromBlackDesktopVideo() {
-  if (shouldUseProjectMovieSource()) return;
-  if (!webVideoFallbackAvailable || selectedProjectVideoSrc === PROJECT_VIDEO_MOBILE_SRC) return;
+  // Do not replace the in-scene source with projectmovie1_mobile.mp4.
+  // If WebGL VideoTexture is black on PC, the live HTML video is projected
+  // over the 3D screen as a visual fallback while the same projectmovie1.mp4
+  // continues to feed the VR/AR screen.
+  if (renderer.xr.isPresenting || cameraARActive) return;
   if (video && !video.paused && sampleVideoFrameLooksBlack()) {
-    setProjectVideoStatus('PC Web fallback: projectmovie1.mp4 audio played but frames were black, switching to projectmovie1_mobile.mp4.', 'loading');
-    setProjectSceneVideoSource(PROJECT_VIDEO_MOBILE_SRC);
-    rebuildHTMLVideoTexture();
-    ensureVideoTexture();
-    startProjectVideo(false, 'manual');
+    showDesktopVideoOverlay(true);
+    setProjectVideoStatus('PC Web fallback: showing the live projectmovie1.mp4 element on the in-scene screen.', 'loading');
   }
 }
 
@@ -706,6 +705,7 @@ async function startProjectVideo(withSound = false, source = 'manual') {
     // remains a tiny live source for WebGL, but no separate desktop UI is shown.
     rebuildHTMLVideoTexture();
     ensureVideoTexture();
+    if (!renderer.xr.isPresenting && !cameraARActive && !isMobile) showDesktopVideoOverlay(true);
     setTimeout(() => updateVideoFrameTexture(true), 80);
     setTimeout(() => updateVideoFrameTexture(true), 320);
     setTimeout(maybeFallbackFromBlackDesktopVideo, 900);
@@ -845,14 +845,8 @@ video.addEventListener('pause', () => {
   if (!video.ended && videoEverPlayed) setProjectVideoStatus(tr.videoPaused, '');
 });
 video.addEventListener('error', () => {
-  if (!shouldUseProjectMovieSource() && webVideoFallbackAvailable && selectedProjectVideoSrc !== PROJECT_VIDEO_MOBILE_SRC) {
-    setProjectSceneVideoSource(PROJECT_VIDEO_MOBILE_SRC);
-    rebuildHTMLVideoTexture();
-    ensureVideoTexture();
-    startProjectVideo(false, 'manual');
-    return;
-  }
   showPosterOnVideoScreens();
+  showDesktopVideoOverlay(false);
   setProjectVideoStatus(tr.videoError, 'error');
 });
 
@@ -909,8 +903,10 @@ projectScreenGroup.position.set(0, 9.1, -16.0);
 projectScreenGroup.rotation.x = 0.48;
 portalGroup.add(projectScreenGroup);
 
+const projectScreenWidth = 17.08;
+const projectScreenHeight = 9.60;
 const videoScreen = new THREE.Mesh(
-  createParabolicScreenGeometry(17.08, 9.60, 120, 68, 1.45),
+  createParabolicScreenGeometry(projectScreenWidth, projectScreenHeight, 120, 68, 1.45),
   videoMaterial
 );
 videoScreen.name = 'Project Movie Large High Parabolic Screen';
@@ -944,6 +940,48 @@ const videoHelp = makeTextSprite(tr.video3DHelp, {
 });
 videoHelp.position.set(0, -6.08, 0.86);
 projectScreenGroup.add(videoHelp);
+
+const desktopOverlayCorners = [
+  new THREE.Vector3(-projectScreenWidth / 2, projectScreenHeight / 2, 0.72),
+  new THREE.Vector3(projectScreenWidth / 2, projectScreenHeight / 2, 0.72),
+  new THREE.Vector3(projectScreenWidth / 2, -projectScreenHeight / 2, 0.72),
+  new THREE.Vector3(-projectScreenWidth / 2, -projectScreenHeight / 2, 0.72)
+];
+let desktopVideoOverlayForced = false;
+
+function showDesktopVideoOverlay(show = true) {
+  desktopVideoOverlayForced = !!show;
+  if (!video) return;
+  document.body.classList.toggle('desktop-video-overlay-active', desktopVideoOverlayForced && !renderer.xr.isPresenting && !cameraARActive && !isMobile);
+}
+
+function updateDesktopVideoOverlay() {
+  if (!video) return;
+  const active = desktopVideoOverlayForced && !renderer.xr.isPresenting && !cameraARActive && !isMobile;
+  document.body.classList.toggle('desktop-video-overlay-active', active);
+  if (!active) return;
+
+  projectScreenGroup.updateWorldMatrix(true, false);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const corner of desktopOverlayCorners) {
+    const p = corner.clone().applyMatrix4(projectScreenGroup.matrixWorld).project(camera);
+    const x = (p.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-p.y * 0.5 + 0.5) * window.innerHeight;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  const pad = 4;
+  const left = THREE.MathUtils.clamp(minX - pad, -window.innerWidth, window.innerWidth * 2);
+  const top = THREE.MathUtils.clamp(minY - pad, -window.innerHeight, window.innerHeight * 2);
+  const width = THREE.MathUtils.clamp(maxX - minX + pad * 2, 8, window.innerWidth * 2);
+  const height = THREE.MathUtils.clamp(maxY - minY + pad * 2, 8, window.innerHeight * 2);
+  video.style.left = `${left}px`;
+  video.style.top = `${top}px`;
+  video.style.width = `${width}px`;
+  video.style.height = `${height}px`;
+}
 
 const cards = [];
 const cardBacks = [];
@@ -1303,6 +1341,7 @@ function createCapsulePart(radius, length, color, emissive = 0x123744) {
 
 
 const xrHandLoader = new GLTFLoader();
+const XR_HAND_ASSET_PATH = './assets/xr_hand_grip.glb';
 let xrHandSource = null;
 let xrHandClip = null;
 let xrHandLoadPromise = null;
@@ -1310,12 +1349,13 @@ let xrHandLoadPromise = null;
 function loadXRHandAsset() {
   if (xrHandSource) return Promise.resolve({ scene: xrHandSource, clip: xrHandClip });
   if (xrHandLoadPromise) return xrHandLoadPromise;
-  xrHandLoadPromise = xrHandLoader.loadAsync('./assets/xr_hand.glb').then((gltf) => {
+  xrHandLoadPromise = xrHandLoader.loadAsync(XR_HAND_ASSET_PATH).then((gltf) => {
     xrHandSource = gltf.scene;
-    xrHandClip = gltf.animations && gltf.animations.length ? gltf.animations[0] : null;
+    xrHandClip = THREE.AnimationClip.findByName(gltf.animations || [], 'Grip') || (gltf.animations && gltf.animations[0]) || null;
+    if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('xr_hand.glb could not be loaded. Falling back to simple XR glove.', error);
+    console.warn('xr_hand_grip.glb could not be loaded. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1332,7 +1372,7 @@ function createMinimalFallbackHand(handedness = 'right') {
     roughness: 0.28,
     metalness: 0.0,
     transparent: true,
-    opacity: 0.50,
+    opacity: 0.52,
     transmission: 0.12,
     side: THREE.DoubleSide
   });
@@ -1355,6 +1395,10 @@ function createMinimalFallbackHand(handedness = 'right') {
 }
 
 function removeOtherHandParts(root, handedness) {
+  // xr_hand_grip.glb contains both hands. Keep only the requested side so each
+  // controller receives one correct GLB hand instead of an offset double-hand.
+  // In this asset, GLOBAL_MAIN_CONTROL_R is the right-hand rig and
+  // GLOBAL_MAIN_CONTROL_R1 is the mirrored left-hand rig.
   const removeNames = handedness === 'left'
     ? ['Hand_Low', 'GLOBAL_MAIN_CONTROL_R']
     : ['Hand_Low1', 'GLOBAL_MAIN_CONTROL_R1'];
@@ -1375,44 +1419,75 @@ function stylizeLoadedXRHand(root) {
     obj.castShadow = false;
     obj.receiveShadow = false;
     obj.material = new THREE.MeshPhysicalMaterial({
-      color: 0xa4a9ff,
-      emissive: 0x4356ff,
-      emissiveIntensity: 0.16,
-      roughness: 0.16,
+      color: 0xa9aeff,
+      emissive: 0x4557ff,
+      emissiveIntensity: 0.12,
+      roughness: 0.18,
       metalness: 0.0,
       transparent: true,
-      opacity: 0.56,
-      transmission: 0.22,
-      thickness: 0.18,
-      clearcoat: 0.70,
-      clearcoatRoughness: 0.16,
+      opacity: 0.62,
+      transmission: 0.14,
+      thickness: 0.16,
+      clearcoat: 0.62,
+      clearcoatRoughness: 0.18,
       side: THREE.DoubleSide,
       depthWrite: false
     });
   });
 }
 
+const handBasisMatrix = new THREE.Matrix4();
+const handBox = new THREE.Box3();
+const handSize = new THREE.Vector3();
+const handCenter = new THREE.Vector3();
+
 function normalizeLoadedHandModel(model, handedness = 'right') {
   model.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  box.getSize(size);
-  box.getCenter(center);
-  const maxDim = Math.max(size.x, size.y, size.z) || 1;
-  const desired = 0.245;
+  handBox.setFromObject(model);
+  handBox.getSize(handSize);
+  handBox.getCenter(handCenter);
+  const maxDim = Math.max(handSize.x, handSize.y, handSize.z) || 1;
+  const desired = 0.285;
   const scale = desired / maxDim;
-  model.scale.multiplyScalar(scale);
-  model.position.x -= center.x * scale;
-  model.position.y -= center.y * scale;
-  model.position.z -= center.z * scale;
+  model.scale.setScalar(scale);
+  model.position.set(-handCenter.x * scale, -handCenter.y * scale, -handCenter.z * scale);
 
-  // Align the hand with a common WebXR controller pose: palm near the grip,
-  // fingers pointing roughly forward. The GLB itself is kept intact.
-  model.rotation.set(-Math.PI / 2, handedness === 'left' ? Math.PI : 0, handedness === 'left' ? -0.10 : 0.10);
-  model.position.x += handedness === 'left' ? -0.030 : 0.030;
-  model.position.y += -0.030;
-  model.position.z += -0.070;
+  // Asset fingers run along local +X. WebXR controller rays run along -Z.
+  // This basis maps +X -> -Z and lays the palm naturally across local X/Y.
+  handBasisMatrix.makeBasis(
+    new THREE.Vector3(0, 0, -1),
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, -1, 0)
+  );
+  model.setRotationFromMatrix(handBasisMatrix);
+
+  // Re-center after rotation so the hand no longer floats off-center from the
+  // controller grip point. The wrist stays near the controller, fingers forward.
+  model.updateMatrixWorld(true);
+  handBox.setFromObject(model);
+  handBox.getCenter(handCenter);
+  model.position.x -= handCenter.x;
+  model.position.y -= handCenter.y + 0.010;
+  model.position.z -= handBox.max.z - 0.012;
+
+  // Tiny handedness offset helps the two hands sit naturally on each controller.
+  model.position.x += handedness === 'left' ? -0.010 : 0.010;
+}
+
+function setupGripAction(container, model, clip) {
+  if (!clip) return;
+  const mixer = new THREE.AnimationMixer(model);
+  const action = mixer.clipAction(clip);
+  action.setLoop(THREE.LoopOnce, 1);
+  action.clampWhenFinished = true;
+  action.enabled = true;
+  action.paused = true;
+  action.play();
+  action.time = 0;
+  mixer.update(0);
+  container.userData.handMixer = mixer;
+  container.userData.handClip = clip;
+  container.userData.handAction = action;
 }
 
 function attachLoadedXRHand(container, handedness = 'right') {
@@ -1420,76 +1495,100 @@ function attachLoadedXRHand(container, handedness = 'right') {
     if (!sourceScene) return;
     container.clear();
     const model = SkeletonUtils.clone(sourceScene);
-    model.name = `${handedness} xr_hand.glb controller hand`;
+    model.name = `${handedness} xr_hand_grip.glb controller hand`;
     removeOtherHandParts(model, handedness);
     stylizeLoadedXRHand(model);
     normalizeLoadedHandModel(model, handedness);
     container.add(model);
     container.userData.loadedGLBHand = model;
-
-    if (clip) {
-      const mixer = new THREE.AnimationMixer(model);
-      const action = mixer.clipAction(clip);
-      action.enabled = true;
-      action.setLoop(THREE.LoopOnce, 1);
-      action.clampWhenFinished = true;
-      action.play();
-      action.paused = true;
-      container.userData.handMixer = mixer;
-      container.userData.handClip = clip;
-      container.userData.handAction = action;
-      mixer.setTime(0);
-    }
+    setupGripAction(container, model, clip);
   });
 }
 
 function createXRHandModel(handedness = 'right') {
   const container = new THREE.Group();
-  container.name = `${handedness} xr_hand.glb hand container`;
+  container.name = `${handedness} xr_hand_grip.glb hand container`;
+  container.userData.handedness = handedness;
   container.userData.grip = 0;
+  container.userData.gripTarget = 0;
   container.add(createMinimalFallbackHand(handedness));
   attachLoadedXRHand(container, handedness);
   return container;
 }
 
-function setXRHandGrip(handModel, grip) {
+function setXRHandGrip(handModel, targetGrip, delta = 1 / 60) {
   if (!handModel) return;
-  const g = THREE.MathUtils.clamp(grip, 0, 1);
-  handModel.userData.grip += (g - (handModel.userData.grip || 0)) * 0.32;
-  const t = handModel.userData.grip;
+  const target = THREE.MathUtils.clamp(targetGrip, 0, 1);
+  handModel.userData.gripTarget = target;
+  const current = handModel.userData.grip || 0;
+  const t = THREE.MathUtils.damp(current, target, 18, delta);
+  handModel.userData.grip = t;
 
-  if (handModel.userData.handMixer && handModel.userData.handClip) {
+  if (handModel.userData.handMixer && handModel.userData.handClip && handModel.userData.handAction) {
     const duration = handModel.userData.handClip.duration || 1;
-    handModel.userData.handMixer.setTime(duration * t);
+    const action = handModel.userData.handAction;
+    action.enabled = true;
+    action.paused = true;
+    action.time = duration * t;
+    handModel.userData.handMixer.update(0);
     return;
   }
 
-  // Fallback glove: subtly tilt fingers when the trigger is pulled.
+  // Fallback glove: subtly tilt fingers when the trigger/grip is pulled.
   handModel.children.forEach((child, index) => {
     if (index > 0) child.rotation.x = Math.PI / 2 - t * 0.72;
   });
 }
 
-function getTriggerValueFromInputSource(source) {
-  if (!source || !source.gamepad || !source.gamepad.buttons || !source.gamepad.buttons[0]) return 0;
-  const button = source.gamepad.buttons[0];
-  return Number.isFinite(button.value) ? button.value : (button.pressed ? 1 : 0);
+function getButtonValue(source, indices) {
+  if (!source || !source.gamepad || !source.gamepad.buttons) return 0;
+  let value = 0;
+  for (const index of indices) {
+    const button = source.gamepad.buttons[index];
+    if (!button) continue;
+    value = Math.max(value, Number.isFinite(button.value) ? button.value : (button.pressed ? 1 : 0));
+  }
+  return value;
 }
 
-function updateXRHandModels() {
+function getTriggerValueFromInputSource(source) {
+  return getButtonValue(source, [0]);
+}
+
+function getGripButtonValueFromInputSource(source) {
+  // index 1 is commonly the squeeze/grip button; keep index 0 as a fallback so
+  // trigger-only controllers still animate the hand.
+  return getButtonValue(source, [1, 0]);
+}
+
+function updateXRHandModels(delta = 1 / 60) {
   const session = renderer.xr.getSession();
   if (!session) {
-    controllers.forEach((controller) => setXRHandGrip(controller.userData.handModel, controller.userData.selecting ? 1 : 0));
+    controllers.forEach((controller) => {
+      const target = controller.userData.selecting || controller.userData.squeezeGripping ? 1 : 0;
+      setXRHandGrip(controller.userData.handModel, target, delta);
+    });
     return;
   }
   const sources = Array.from(session.inputSources);
   controllers.forEach((controller, index) => {
+    const handedness = controller.userData.handedness || (index === 0 ? 'left' : 'right');
     const fallback = sources[index];
-    const preferredHandedness = controller.userData.index === 0 ? 'left' : 'right';
-    const source = sources.find((item) => item.handedness === preferredHandedness) || fallback;
-    const trigger = Math.max(getTriggerValueFromInputSource(source), controller.userData.selecting ? 1 : 0);
-    setXRHandGrip(controller.userData.handModel, trigger);
+    const source = sources.find((item) => item.handedness === handedness) || fallback;
+    const buttonGrip = getGripButtonValueFromInputSource(source);
+    const eventGrip = (controller.userData.selecting || controller.userData.squeezeGripping) ? 1 : 0;
+    setXRHandGrip(controller.userData.handModel, Math.max(buttonGrip, eventGrip), delta);
   });
+}
+
+function setControllerHandModel(controller, handedness = 'right') {
+  const normalized = handedness === 'left' ? 'left' : 'right';
+  if (controller.userData.handedness === normalized && controller.userData.handModel) return;
+  if (controller.userData.handModel) controller.remove(controller.userData.handModel);
+  controller.userData.handedness = normalized;
+  const handModel = createXRHandModel(normalized);
+  controller.userData.handModel = handModel;
+  controller.add(handModel);
 }
 
 const controllers = [];
@@ -1497,6 +1596,7 @@ for (let i = 0; i < 2; i++) {
   const controller = renderer.xr.getController(i);
   controller.userData.index = i;
   controller.userData.selecting = false;
+  controller.userData.squeezeGripping = false;
   controller.userData.teleportPoint = new THREE.Vector3();
   controller.userData.hasTeleportPoint = false;
 
@@ -1505,9 +1605,27 @@ for (let i = 0; i < 2; i++) {
   ray.scale.z = 9;
   controller.add(ray);
 
-  const handModel = createXRHandModel(i === 0 ? 'left' : 'right');
-  controller.userData.handModel = handModel;
-  controller.add(handModel);
+  setControllerHandModel(controller, i === 0 ? 'left' : 'right');
+
+  controller.addEventListener('connected', (event) => {
+    const handedness = event.data && (event.data.handedness === 'left' || event.data.handedness === 'right')
+      ? event.data.handedness
+      : (i === 0 ? 'left' : 'right');
+    setControllerHandModel(controller, handedness);
+  });
+
+  controller.addEventListener('disconnected', () => {
+    controller.userData.selecting = false;
+    controller.userData.squeezeGripping = false;
+  });
+
+  controller.addEventListener('squeezestart', () => {
+    controller.userData.squeezeGripping = true;
+  });
+
+  controller.addEventListener('squeezeend', () => {
+    controller.userData.squeezeGripping = false;
+  });
 
   controller.addEventListener('selectstart', () => {
     if (currentXRMode === 'ar') {
@@ -1839,21 +1957,25 @@ function updateXRMovement(delta) {
   }
 
   // Left controller: translation only. It never changes the view direction.
-  // Movement is recalculated from the current headset yaw every frame, so after
-  // right-stick turning, forward/sideways movement stays aligned with where the
-  // user is actually facing instead of a fixed world-coordinate direction.
+  // Movement is based on the current headset/camera forward direction, not on
+  // fixed world axes. This keeps movement natural after physically looking
+  // around or after turning with the right stick.
   if (Math.abs(leftX) > 0 || Math.abs(leftY) > 0) {
-    // Stable controller locomotion: translate relative to the XR rig yaw that
-    // the right stick controls. This avoids the movement vector feeling fixed
-    // to world coordinates or drifting after turning.
-    tmpDirection.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y)).normalize();
-    tmpSide.set(Math.cos(player.rotation.y), 0, Math.sin(player.rotation.y)).normalize();
+    const xrCamera = renderer.xr.getCamera(camera);
+    xrCamera.getWorldDirection(tmpDirection);
+    tmpDirection.y = 0;
+    if (tmpDirection.lengthSq() < 0.0001) {
+      tmpDirection.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y));
+    }
+    tmpDirection.normalize();
+    tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
 
     const speed = 2.2;
+    const magnitude = Math.max(1, Math.hypot(leftX, leftY));
     const moveScale = Math.min(1, Math.hypot(leftX, leftY));
     if (moveScale > 0) {
-      const moveForward = -leftY / Math.max(1, Math.hypot(leftX, leftY));
-      const moveSide = leftX / Math.max(1, Math.hypot(leftX, leftY));
+      const moveForward = -leftY / magnitude;
+      const moveSide = leftX / magnitude;
       player.position.addScaledVector(tmpDirection, moveForward * speed * moveScale * delta);
       player.position.addScaledVector(tmpSide, moveSide * speed * moveScale * delta);
       clampPlayerPosition();
@@ -1910,6 +2032,7 @@ renderer.xr.addEventListener('sessionstart', () => {
   if (hud) hud.style.display = 'none';
   if (mobileControls) mobileControls.style.display = 'none';
 
+  showDesktopVideoOverlay(false);
   setProjectSceneVideoSource(PROJECT_VIDEO_SRC);
   rebuildHTMLVideoTexture();
   ensureVideoTexture();
@@ -1965,7 +2088,8 @@ function animate(timestamp, frame) {
   const t = clock.elapsedTime;
 
   updateVideoFrameTexture(false);
-  updateXRHandModels();
+  updateDesktopVideoOverlay();
+  updateXRHandModels(delta);
 
   if (cameraARActive) {
     camera.rotation.set(pitch, yaw, 0);

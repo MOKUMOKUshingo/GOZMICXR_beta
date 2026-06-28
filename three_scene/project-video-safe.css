@@ -229,3 +229,33 @@ body.is-mobile .native-mobile-only {
     line-height: 48px;
   }
 }
+
+/* Add19: PC Web fallback that still feels in-scene.
+   The same projectmovie1.mp4 video element is projected over the three.js screen,
+   not shown as a separate right-top UI. */
+body.desktop-video-overlay-active #projectVideoSource {
+  position: fixed;
+  opacity: 1;
+  z-index: 2;
+  pointer-events: none;
+  object-fit: cover;
+  background: #000;
+  border-radius: 10px;
+  box-shadow: 0 0 38px rgba(104, 220, 255, 0.18);
+}
+
+body.in-vr #projectVideoSource,
+body.in-ar #projectVideoSource,
+body.in-camera-ar #projectVideoSource,
+body.is-mobile #projectVideoSource {
+  opacity: 0.01;
+  width: 2px;
+  height: 2px;
+  left: 0;
+  bottom: 0;
+  top: auto;
+  z-index: -1;
+}
+body.desktop-video-overlay-active #projectVideoSource {
+  bottom: auto;
+}

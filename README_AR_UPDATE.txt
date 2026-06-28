@@ -1,7 +1,7 @@
 AR UPDATE
 =========
 
-This build keeps the original 3d5start54 / COZMIX Space Vibes template structure and the existing Chico-photo click route:
+This build keeps the original 3d5start54 / COZMIX Space template structure and the existing Chico-photo click route:
 
   gallery photo with caption "Chico's main fear was missing the morning bus."
   -> three_scene/index.html
@@ -17,7 +17,7 @@ Added to three_scene:
    - Press START AR.
    - Move the phone/headset to scan a floor, table, or other flat surface.
    - A cyan reticle appears when a surface is detected.
-   - Tap/select the surface to place a small COZMIX Space Vibes AR gallery.
+   - Tap/select the surface to place a small COZMIX Space AR gallery.
 
 3. VR preserved
    - ENTER VR remains available.

@@ -4,11 +4,11 @@
 
   const pageText = {
     en: {
-      title: 'COZMIX Space vibes by GOZMIX',
+      title: 'COZMIX Space by GOZMIX',
       tagline: 'simple and effective design',
       nav: ['Introduction', 'Gallery', 'Testimonials', 'About', 'Contact'],
       close: 'return home',
-      introTitle: 'Introducing COZMIX Space Vibes',
+      introTitle: 'Introducing COZMIX Space',
       intro: [
         'This CSS template is 100% free provided by <a rel="nofollow" href="https://gozmix.com/page/1" target="_parent">GOZMIX</a> website. You can use this template for any purpose. You can apply this as a CMS theme or a custom website builder template.',
         'You can support our website by contributing <a rel="nofollow" href="http://paypal.me/gozmix" target="_parent">a little via <strong>PayPal</strong></a> or spreading a word about GOZMIX to your friends. If you have any question, feel free to send us a message.',
@@ -32,7 +32,7 @@
       },
       testimonialsTitle: 'Testimonials',
       testimonials: [
-        'COZMIX Space vibes is free website template from <a rel="nofollow" href="https://gozmix.com" class="tm-color-primary">GOZMIX</a> website. You are allowed to use it for commercial purpose. You can convert this template as a CMS theme or a custom website builder template.',
+        'COZMIX Space is free website template from <a rel="nofollow" href="https://gozmix.com" class="tm-color-primary">GOZMIX</a> website. You are allowed to use it for commercial purpose. You can convert this template as a CMS theme or a custom website builder template.',
         'You may support us by telling your friends about our GOZMIX site. Feel free to contact us if you have anything to ask.',
         'You can make a little contribution via <a rel="nofollow" href="http://paypal.me/gozmix" target="_parent"><strong>PayPal</strong></a> or saying about GOZMIX to your friends. Duis egestas lorem eu nisi finibus, sit amet elementum lacus pretium.',
         'In tempor felis vitae nulla feugiat aliquam. Vivamus vitae congue mi. Sed maximus velit vestibulum nisl condimentum hendrerit.',
@@ -42,7 +42,7 @@
         'Mauris accumsan erat ante, id sagittis felis gravida vitae. Sed iaculis tincidunt neque, a molestie magna vehicula at.',
         'Phasellus ornare magna nec nulla pharetra, nec tristique elit lobortis.'
       ],
-      aboutTitle: 'About COZMIX Space Vibes',
+      aboutTitle: 'About COZMIX Space',
       about: [
         'Suspendisse sit amet pellentesque nunc. Vivamus fringilla tellus finibus lacus blandit, siet amet aliquet augue sagittis. Duis nec auctor felis, nec ornare ex. In non ante ligula.',
         'Curabitur non augue dignissim est pulvibar lobortis. Nunc vulputate, mi vel cursus mollis, justo mauris rutrum dui, id egestas ante ligula id nunc. Interdum et malesuada fames ac ante ipsum primis in faucibus.',
@@ -66,16 +66,16 @@
       open3d: 'Open the three.js 3D scene'
     },
     ja: {
-      title: 'COZMIX Space vibes - 日本語対応サイト',
+      title: 'COZMIX Space - 日本語対応サイト',
       tagline: 'シンプルで効果的なデザイン',
       nav: ['紹介', 'ギャラリー', 'お客様の声', 'このサイトについて', 'お問い合わせ'],
       close: 'ホームに戻る',
-      introTitle: 'COZMIX Space Vibes の紹介',
+      introTitle: 'COZMIX Space の紹介',
       intro: [
         'このWebサイトは、海の雰囲気を活かした静的HTMLテンプレートをベースにしています。写真ギャラリー、動画バナー、ポップアップページを組み合わせて、軽く見やすいサイトとして使えます。',
         '現在は、元のデザインを残しながら、写真クリックでthree.jsの3D空間へ移動できるように拡張しています。PC、スマホ、VR、ARで楽しめる入り口として使えます。',
         '<strong>素材について：</strong>トップページの動画、ギャラリー写真、3D空間内の海動画は、それぞれ別々に管理できます。トップ動画を差し替えても、three.js内の海動画はそのまま残せます。',
-        'このページでは、元のCOZMIX Space Vibesの雰囲気を保ちながら、日本語と英語を切り替えられるようにしています。',
+        'このページでは、元のCOZMIX Spaceの雰囲気を保ちながら、日本語と英語を切り替えられるようにしています。',
         '右上の閉じるアイコンを押すと、このポップアップページを閉じてホームに戻ります。',
         '「次のページ」を押すと、メニューに戻らずギャラリーページへ直接移動します。'
       ],
@@ -94,19 +94,19 @@
       },
       testimonialsTitle: 'お客様の声',
       testimonials: [
-        'COZMIX Space vibesは、海の映像と写真ギャラリーを中心にしたWebサイトです。元の静的テンプレートを活かしつつ、3Dページへの入口としても使えるように拡張しています。',
+        'COZMIX Spaceは、海の映像と写真ギャラリーを中心にしたWebサイトです。元の静的テンプレートを活かしつつ、3Dページへの入口としても使えるように拡張しています。',
         'スマホではタップ操作、PCではクリック操作でギャラリーを開けます。写真から3D空間へ移動する導線も自然に組み込んでいます。',
         'トップページの動画は病院サンプル動画に差し替え、three.js空間内では元の海動画を表示するように分離しています。',
         'VR対応端末では、ENTER VRから空間に入り、コントローラーで移動やテレポートができます。',
         '「写真ギャラリーから3D空間へ移動する導線が、サイト全体の雰囲気と合っている。」 by <span class="tm-color-primary">George, Chief Editor</span>',
         '「スマホ、PC、VR、ARを同じサイト内で扱える点が面白い。」 by <span class="tm-color-primary">Mary, CEO of Web</span>',
-        'ARモードでは、現実空間に小さなCOZMIX Space Vibesギャラリーを置くことを想定しています。',
+        'ARモードでは、現実空間に小さなCOZMIX Spaceギャラリーを置くことを想定しています。',
         'WebXRは端末やブラウザによって対応状況が変わるため、HTTPS環境で確認するのがおすすめです。',
         'このページは、英語と日本語を切り替えながら閲覧できます。'
       ],
-      aboutTitle: 'COZMIX Space Vibes について',
+      aboutTitle: 'COZMIX Space について',
       about: [
-        'このサイトは、元のCOZMIX Space Vibesテンプレートの構造を保ちながら、three.jsによる3D空間を追加した拡張版です。',
+        'このサイトは、元のCOZMIX Spaceテンプレートの構造を保ちながら、three.jsによる3D空間を追加した拡張版です。',
         '写真ギャラリー、動画バナー、ポップアップUI、スマホ対応の表示をそのまま活かし、3D / VR / ARへの入口を加えています。',
         'トップページの動画は <span class="tm-color-primary">video/Title1-1_web.mp4</span> を参照し、three.js側では元の海動画 <span class="tm-color-primary">video/projectmovie1.mp4</span> を使い続けます。',
         'スマホではタッチ操作、PCではキーボードとドラッグ、VRではWebXR、ARではhit-testを使った配置を想定しています。',

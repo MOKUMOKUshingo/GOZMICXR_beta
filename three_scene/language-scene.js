@@ -3,20 +3,20 @@
   const supported = ['en', 'ja'];
   const text = {
     en: {
-      title: 'COZMIX Space Vibes 3D / VR / AR Scene',
+      title: 'COZMIX Space 3D / VR / AR Scene',
       back: '← Gallery',
-      backLabel: 'Back to COZMIX Space Vibes gallery',
+      backLabel: 'Back to COZMIX Space gallery',
       eyebrow: 'three.js portal',
-      heading: 'COZMIX Space Vibes 3D / VR / AR',
-      description: 'PC: WASD + drag. Video: J / K / L = rewind / play / fast-forward. Mobile: stick + swipe. VR: press ENTER VR. AR: press START AR, scan a floor or desk, then tap to place the COZMIX Space Vibes mini gallery.',
+      heading: 'COZMIX Space 3D / VR / AR',
+      description: 'PC: WASD + drag. Video: J / K / L = rewind / play / fast-forward. Mobile: stick + swipe. VR: press ENTER VR. AR: press START AR, scan a floor or desk, then tap to place the COZMIX Space mini gallery.',
       mobileHint: 'DRAG TO LOOK'
     },
     ja: {
-      title: 'COZMIX Space Vibes 3D / VR / AR 空間',
+      title: 'COZMIX Space 3D / VR / AR 空間',
       back: '← ギャラリーへ戻る',
-      backLabel: 'COZMIX Space Vibesギャラリーへ戻る',
+      backLabel: 'COZMIX Spaceギャラリーへ戻る',
       eyebrow: 'three.js ポータル',
-      heading: 'COZMIX Space Vibes 3D / VR / AR',
+      heading: 'COZMIX Space 3D / VR / AR',
       description: 'PC：WASD + ドラッグ。動画：J / K / L = 巻き戻し / 再生停止 / 早送り。スマホ：左下スティック + スワイプ。VR：ENTER VR。AR：START ARを押し、床や机をスキャンしてタップすると小さなギャラリーを配置できます。',
       mobileHint: 'スワイプで視点移動'
     }
