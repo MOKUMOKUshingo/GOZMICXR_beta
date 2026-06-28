@@ -7,8 +7,8 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 const LANG_KEY = 'cozmixSpaceLang';
 const sceneTexts = {
   en: {
-    titleSprite: "Chico's morning-bus fear opened this 3D COZMIX Space.",
-    vrGuide: ['VR MODE', 'Left stick: move only', 'Right stick: turn only / A or stick-click: jump / Trigger: select'],
+    titleSprite: '',
+    vrGuide: [],
     arName: 'COZMIX Space AR Mini Gallery',
     arLabel: ['COZMIX Space AR', 'tap a surface to place'],
     vrButton: 'ENTER VR',
@@ -37,8 +37,8 @@ const sceneTexts = {
     nativeNote: 'If mobile inline playback fails, use this native video player.'
   },
   ja: {
-    titleSprite: 'Chicoの写真から開いた3D海上空間。',
-    vrGuide: ['VRモード', '左スティック：並進のみ', '右スティック：回転のみ / A・スティック押込：ジャンプ / トリガー：選択'],
+    titleSprite: '',
+    vrGuide: [],
     arName: 'COZMIX Space AR ミニギャラリー',
     arLabel: ['COZMIX Space AR', '床や机をタップして配置'],
     vrButton: 'VRに入る',
@@ -84,6 +84,7 @@ function getSceneLang() {
 const sceneLang = getSceneLang();
 const tr = sceneTexts[sceneLang];
 const canvasFontFamily = sceneLang === 'ja' ? 'Arial, \"Hiragino Sans\", \"Yu Gothic\", sans-serif' : 'Arial';
+const SHOW_SCENE_TEXT_SIGNS = false;
 
 function setXRButtonLabels() {
   if (sceneLang !== 'ja') return;
@@ -268,7 +269,7 @@ scene.add(grid);
 
 const title = makeTextSprite(tr.titleSprite);
 title.position.set(0, 5.2, -8.5);
-scene.add(title);
+if (SHOW_SCENE_TEXT_SIGNS) scene.add(title);
 
 const vrGuide = makeTextSprite(tr.vrGuide, {
   width: 1200,
@@ -280,7 +281,7 @@ const vrGuide = makeTextSprite(tr.vrGuide, {
   background: 'rgba(0, 53, 74, 0.68)'
 });
 vrGuide.position.set(0, 3.3, -4.4);
-scene.add(vrGuide);
+if (SHOW_SCENE_TEXT_SIGNS) scene.add(vrGuide);
 
 const portalGroup = new THREE.Group();
 scene.add(portalGroup);
@@ -1029,8 +1030,8 @@ scene.add(particles);
 function setVRSceneVisible(visible) {
   floor.visible = visible;
   grid.visible = visible;
-  title.visible = visible;
-  vrGuide.visible = visible;
+  title.visible = visible && SHOW_SCENE_TEXT_SIGNS;
+  vrGuide.visible = visible && SHOW_SCENE_TEXT_SIGNS;
   portalGroup.visible = visible;
   particles.visible = visible;
   cards.forEach((card) => { card.visible = visible; });
@@ -1461,17 +1462,23 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   );
   model.setRotationFromMatrix(handBasisMatrix);
 
+  // User calibration: the imported right hand was rotated 90 degrees clockwise
+  // from the controller ray, and the left hand 90 degrees counter-clockwise.
+  // Apply the opposite yaw so both hands point along the controller forward
+  // vector (-Z).
+  model.rotateY(handedness === 'right' ? Math.PI / 2 : -Math.PI / 2);
+
   // Re-center after rotation so the hand no longer floats off-center from the
   // controller grip point. The wrist stays near the controller, fingers forward.
   model.updateMatrixWorld(true);
   handBox.setFromObject(model);
   handBox.getCenter(handCenter);
   model.position.x -= handCenter.x;
-  model.position.y -= handCenter.y + 0.010;
-  model.position.z -= handBox.max.z - 0.012;
+  model.position.y -= handCenter.y + 0.006;
+  model.position.z -= handBox.max.z - 0.018;
 
   // Tiny handedness offset helps the two hands sit naturally on each controller.
-  model.position.x += handedness === 'left' ? -0.010 : 0.010;
+  model.position.x += handedness === 'left' ? -0.008 : 0.008;
 }
 
 function setupGripAction(container, model, clip) {
@@ -1886,10 +1893,31 @@ const tmpDirection = new THREE.Vector3();
 const tmpSide = new THREE.Vector3();
 const tmpHeadBefore = new THREE.Vector3();
 const tmpHeadAfter = new THREE.Vector3();
+const tmpHeadQuaternion = new THREE.Quaternion();
+
+function getXRHeadCamera() {
+  const xrCamera = renderer.xr.getCamera(camera);
+  if (xrCamera && Array.isArray(xrCamera.cameras) && xrCamera.cameras.length > 0) {
+    return xrCamera.cameras[0];
+  }
+  return xrCamera || camera;
+}
+
+function getXRHeadForwardHorizontal(out) {
+  const headCamera = getXRHeadCamera();
+  headCamera.updateMatrixWorld(true);
+  headCamera.getWorldQuaternion(tmpHeadQuaternion);
+  out.set(0, 0, -1).applyQuaternion(tmpHeadQuaternion);
+  out.y = 0;
+  if (out.lengthSq() < 0.0001) {
+    out.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y));
+  }
+  return out.normalize();
+}
 
 function rotatePlayerAroundHead(deltaYaw) {
   if (Math.abs(deltaYaw) < 0.00001) return;
-  const xrCamera = renderer.xr.getCamera(camera);
+  const xrCamera = getXRHeadCamera();
   xrCamera.getWorldPosition(tmpHeadBefore);
   player.rotation.y += deltaYaw;
   player.updateMatrixWorld(true);
@@ -1961,13 +1989,10 @@ function updateXRMovement(delta) {
   // fixed world axes. This keeps movement natural after physically looking
   // around or after turning with the right stick.
   if (Math.abs(leftX) > 0 || Math.abs(leftY) > 0) {
-    const xrCamera = renderer.xr.getCamera(camera);
-    xrCamera.getWorldDirection(tmpDirection);
-    tmpDirection.y = 0;
-    if (tmpDirection.lengthSq() < 0.0001) {
-      tmpDirection.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y));
-    }
-    tmpDirection.normalize();
+    // Move relative to the current headset/view direction. This uses the real
+    // XR sub-camera when available, not the fixed world axes nor only the
+    // player rig yaw.
+    getXRHeadForwardHorizontal(tmpDirection);
     tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
 
     const speed = 2.2;

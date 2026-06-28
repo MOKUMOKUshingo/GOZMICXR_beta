@@ -4,7 +4,7 @@
 
   const pageText = {
     en: {
-      title: 'COZMIX Space by GOZMIX',
+      title: 'GOZMIX Space',
       tagline: 'simple and effective design',
       nav: ['Introduction', 'Gallery', 'Testimonials', 'About', 'Contact'],
       close: 'return home',
@@ -66,7 +66,7 @@
       open3d: 'Open the three.js 3D scene'
     },
     ja: {
-      title: 'COZMIX Space - 日本語対応サイト',
+      title: 'GOZMIX Space - 日本語対応サイト',
       tagline: 'シンプルで効果的なデザイン',
       nav: ['紹介', 'ギャラリー', 'お客様の声', 'このサイトについて', 'お問い合わせ'],
       close: 'ホームに戻る',

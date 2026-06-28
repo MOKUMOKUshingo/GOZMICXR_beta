@@ -26,7 +26,7 @@ Main changes:
    - VR / AR still use projectmovie1.mp4 for the in-scene texture.
 
 4. Branding text balance
-   - Awkward phrases such as "COZMIX Space Vibes" / "COZMIX Space vibes" were normalized to "COZMIX Space".
+   - Awkward brand text was normalized.
    - Confirmed no remaining text occurrence of "ocean" or "TemplateMo" in text files.
 
 Video files not included:
