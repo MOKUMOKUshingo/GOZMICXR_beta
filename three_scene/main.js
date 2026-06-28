@@ -264,11 +264,41 @@ scene.add(grid);
 const portalGroup = new THREE.Group();
 scene.add(portalGroup);
 
-const ringGeometry = new THREE.TorusGeometry(2.3, 0.045, 16, 128);
+const ringGeometry = new THREE.TorusGeometry(2.3, 0.055, 20, 128);
 const ringMaterial = new THREE.MeshStandardMaterial({ color: 0x69e6ff, emissive: 0x0b8cb4, emissiveIntensity: 1.25 });
 const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-ring.position.set(0, 2.3, -7.0);
+ring.name = 'Start Position Climb Ring';
+// Put the blue ring at the protagonist start position and lay it flat so it
+// works as a climbable portal/platform instead of a distant vertical sign.
+ring.position.set(0, 0.42, 0);
+ring.rotation.x = Math.PI / 2;
 portalGroup.add(ring);
+
+// Invisible collision volume for the start ring. The visible torus is thin, so
+// the player uses this low cylinder as the walkable/climbable platform.
+const startRingCollision = new THREE.Mesh(
+  new THREE.CylinderGeometry(2.58, 2.58, 0.42, 64),
+  new THREE.MeshBasicMaterial({ visible: false })
+);
+startRingCollision.name = 'Start Position Climb Ring Collision';
+startRingCollision.position.set(0, 0.21, 0);
+portalGroup.add(startRingCollision);
+
+const startRingPlatform = { x: 0, z: 0, radius: 2.58, topY: 0.42 };
+const tmpClimbHeadWorld = new THREE.Vector3();
+
+function getClimbGroundYAtXZ(x, z) {
+  const dx = x - startRingPlatform.x;
+  const dz = z - startRingPlatform.z;
+  return (dx * dx + dz * dz <= startRingPlatform.radius * startRingPlatform.radius)
+    ? startRingPlatform.topY
+    : xrGroundY;
+}
+
+function getCurrentClimbGroundY() {
+  camera.getWorldPosition(tmpClimbHeadWorld);
+  return getClimbGroundYAtXZ(tmpClimbHeadWorld.x, tmpClimbHeadWorld.z);
+}
 
 const video = document.getElementById('projectVideoSource');
 const PROJECT_VIDEO_SRC = '../video/projectmovie1.mp4';
@@ -1409,7 +1439,7 @@ const handCenter = new THREE.Vector3();
 const handWristWorld = new THREE.Vector3();
 const handPalmWorld = new THREE.Vector3();
 const handForwardLocal = new THREE.Vector3();
-const handForwardTarget = new THREE.Vector3(0, 0, 1);
+const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 
 function findHandNode(model, handedness, role) {
@@ -1442,9 +1472,9 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
 
   // Self-calibration from the GLB skeleton:
   // wrist -> palm / middle-finger direction is the hand's natural forward axis.
-  // On the tested WebXR grip pose, aligning this axis to local -Z made the hand
-  // point back toward the user. Align to local +Z so the fingers face away
-  // from the viewer along the controller body instead.
+  // Align the wrist -> palm direction to the WebXR grip forward axis.
+  // In this GLB/runtime combination +Z made the hand face backward, so use -Z.
+  // If future controller runtimes invert the grip pose, only this target changes.
   const wrist = findHandNode(model, handedness, 'wrist');
   const palm = findHandNode(model, handedness, 'palm') || findHandNode(model, handedness, 'middle');
   if (wrist && palm) {
@@ -1976,7 +2006,8 @@ function isXRJumpButtonPressed() {
 
 function updateXRJump(delta) {
   const jumpPressed = isXRJumpButtonPressed();
-  const grounded = player.position.y <= xrGroundY + 0.001;
+  const groundY = currentXRMode === 'vr' ? getCurrentClimbGroundY() : xrGroundY;
+  const grounded = player.position.y <= groundY + 0.001;
   if (jumpPressed && !xrJumpButtonWasDown && grounded && currentXRMode === 'vr') {
     xrVerticalVelocity = 8.375;
   }
@@ -1991,10 +2022,12 @@ function updateXRJump(delta) {
   if (!grounded || xrVerticalVelocity > 0) {
     xrVerticalVelocity -= 9.2 * delta;
     player.position.y += xrVerticalVelocity * delta;
-    if (player.position.y < xrGroundY) {
-      player.position.y = xrGroundY;
+    if (player.position.y < groundY) {
+      player.position.y = groundY;
       xrVerticalVelocity = 0;
     }
+  } else if (player.position.y < groundY) {
+    player.position.y = groundY;
   }
 }
 

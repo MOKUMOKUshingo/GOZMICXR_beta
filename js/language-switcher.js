@@ -62,7 +62,7 @@
         message: 'Message',
         send: 'Send it now'
       },
-      footer: ['Copyright © 2020 Your Company', 'Web Designed by '],
+      footer: ['Copyright © 2026 Your Company', 'Web Designed by '],
       open3d: 'Open the three.js 3D scene'
     },
     ja: {
@@ -124,7 +124,7 @@
         message: 'メッセージ',
         send: '送信する'
       },
-      footer: ['Copyright © 2020 Your Company', 'Webデザイン：'],
+      footer: ['Copyright © 2026 Your Company', 'Webデザイン：'],
       open3d: 'three.js 3D空間を開く'
     }
   };
