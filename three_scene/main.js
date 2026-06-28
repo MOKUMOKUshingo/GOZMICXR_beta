@@ -1514,6 +1514,11 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   // the current xr_hand_grip.glb hand origin without changing the established
   // controller attachment position.
   model.rotateX(-Math.PI / 2);
+
+  // ADD26: Apply the requested additional rotations relative to the latest
+  // xr_hand_grip.glb position/axis: first local X -45deg, then local Z 180deg.
+  model.rotateX(-Math.PI / 4);
+  model.rotateZ(Math.PI);
   model.updateMatrixWorld(true);
 }
 
