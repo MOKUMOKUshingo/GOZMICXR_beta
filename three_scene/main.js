@@ -1439,7 +1439,7 @@ const handCenter = new THREE.Vector3();
 const handWristWorld = new THREE.Vector3();
 const handPalmWorld = new THREE.Vector3();
 const handForwardLocal = new THREE.Vector3();
-const handForwardTarget = new THREE.Vector3(0, 0, -1);
+const handForwardTarget = new THREE.Vector3(0, 0, 1);
 const handAlignQuat = new THREE.Quaternion();
 
 function findHandNode(model, handedness, role) {
@@ -1472,9 +1472,9 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
 
   // Self-calibration from the GLB skeleton:
   // wrist -> palm / middle-finger direction is the hand's natural forward axis.
-  // Align the wrist -> palm direction to the WebXR grip forward axis.
-  // In this GLB/runtime combination +Z made the hand face backward, so use -Z.
-  // If future controller runtimes invert the grip pose, only this target changes.
+  // Align the wrist -> palm/finger direction to the WebXR grip forward axis.
+  // The previous -Z alignment made xr_hand_grip.glb face back toward the player.
+  // For this asset in WebXR grip space, the correct visible hand direction is +Z.
   const wrist = findHandNode(model, handedness, 'wrist');
   const palm = findHandNode(model, handedness, 'palm') || findHandNode(model, handedness, 'middle');
   if (wrist && palm) {
