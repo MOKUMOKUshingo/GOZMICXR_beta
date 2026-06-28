@@ -1507,6 +1507,14 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   model.position.x += handedness === 'left' ? -0.012 : 0.012;
   model.position.y -= 0.032;
   model.position.z += 0.030;
+
+  // ADD25: The latest hand placement/axis was close, but the whole GLB hand
+  // still needed a final local X-axis correction.  Apply this AFTER the
+  // existing wrist-centering and controller-offset logic so it rotates around
+  // the current xr_hand_grip.glb hand origin without changing the established
+  // controller attachment position.
+  model.rotateX(-Math.PI / 2);
+  model.updateMatrixWorld(true);
 }
 
 function setupGripAction(container, model, clip) {
