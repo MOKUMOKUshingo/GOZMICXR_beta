@@ -7,8 +7,6 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 const LANG_KEY = 'cozmixSpaceLang';
 const sceneTexts = {
   en: {
-    titleSprite: '',
-    vrGuide: [],
     arName: 'COZMIX Space AR Mini Gallery',
     arLabel: ['COZMIX Space AR', 'tap a surface to place'],
     vrButton: 'ENTER VR',
@@ -32,13 +30,10 @@ const sceneTexts = {
     videoSeekingBack: 'Rewound 10 seconds.',
     videoSeekingForward: 'Fast-forwarded 10 seconds.',
     videoSeekUnknown: 'Video duration is not ready yet. Wait until metadata is loaded.',
-    video3DHelp: ['Project Movie', 'tap / trigger this screen to play'],
     playNative: 'Mobile player',
     nativeNote: 'If mobile inline playback fails, use this native video player.'
   },
   ja: {
-    titleSprite: '',
-    vrGuide: [],
     arName: 'COZMIX Space AR ミニギャラリー',
     arLabel: ['COZMIX Space AR', '床や机をタップして配置'],
     vrButton: 'VRに入る',
@@ -62,7 +57,6 @@ const sceneTexts = {
     videoSeekingBack: '10秒巻き戻しました。',
     videoSeekingForward: '10秒早送りしました。',
     videoSeekUnknown: '動画の長さをまだ取得できません。メタデータ読み込み後に操作できます。',
-    video3DHelp: ['Project Movie', 'タップ / トリガーで再生'],
     playNative: 'スマホ再生',
     nativeNote: 'スマホで3D内再生できない場合は、このネイティブ再生で確認できます。'
   }
@@ -266,22 +260,6 @@ grid.position.y = -0.98;
 grid.material.transparent = true;
 grid.material.opacity = 0.25;
 scene.add(grid);
-
-const title = makeTextSprite(tr.titleSprite);
-title.position.set(0, 5.2, -8.5);
-if (SHOW_SCENE_TEXT_SIGNS) scene.add(title);
-
-const vrGuide = makeTextSprite(tr.vrGuide, {
-  width: 1200,
-  height: 320,
-  font: `44px ${canvasFontFamily}`,
-  lineHeight: 62,
-  scaleX: 7.6,
-  scaleY: 2.05,
-  background: 'rgba(0, 53, 74, 0.68)'
-});
-vrGuide.position.set(0, 3.3, -4.4);
-if (SHOW_SCENE_TEXT_SIGNS) scene.add(vrGuide);
 
 const portalGroup = new THREE.Group();
 scene.add(portalGroup);
@@ -930,18 +908,6 @@ forwardButton3D.position.set(2.75, -5.35, 0.56);
 projectScreenGroup.add(forwardButton3D);
 addVideoInteractiveObject(forwardButton3D, 'forward');
 
-const videoHelp = makeTextSprite(tr.video3DHelp, {
-  width: 1200,
-  height: 260,
-  font: `48px ${canvasFontFamily}`,
-  lineHeight: 60,
-  scaleX: 5.4,
-  scaleY: 1.05,
-  background: 'rgba(0, 20, 32, 0.70)'
-});
-videoHelp.position.set(0, -6.08, 0.86);
-projectScreenGroup.add(videoHelp);
-
 const desktopOverlayCorners = [
   new THREE.Vector3(-projectScreenWidth / 2, projectScreenHeight / 2, 0.72),
   new THREE.Vector3(projectScreenWidth / 2, projectScreenHeight / 2, 0.72),
@@ -1030,8 +996,6 @@ scene.add(particles);
 function setVRSceneVisible(visible) {
   floor.visible = visible;
   grid.visible = visible;
-  title.visible = visible && SHOW_SCENE_TEXT_SIGNS;
-  vrGuide.visible = visible && SHOW_SCENE_TEXT_SIGNS;
   portalGroup.visible = visible;
   particles.visible = visible;
   cards.forEach((card) => { card.visible = visible; });
@@ -1442,43 +1406,76 @@ const handBox = new THREE.Box3();
 const handSize = new THREE.Vector3();
 const handCenter = new THREE.Vector3();
 
+const handWristWorld = new THREE.Vector3();
+const handPalmWorld = new THREE.Vector3();
+const handForwardLocal = new THREE.Vector3();
+const handForwardTarget = new THREE.Vector3(0, 0, -1);
+const handAlignQuat = new THREE.Quaternion();
+
+function findHandNode(model, handedness, role) {
+  const left = handedness === 'left';
+  const candidates = {
+    wrist: left ? ['Root_joint_023', '_rootJoint'] : ['Root_joint_01', '_rootJoint'],
+    palm: left ? ['HANDPALM_joint_024', 'HANDPALM_cntrl'] : ['HANDPALM_joint_02', 'HANDPALM_cntrl'],
+    middle: left ? ['MIDDLE_F_UP_TOP_joint_032', 'MIDDLE_F_TOP_joint_031'] : ['MIDDLE_F_UP_TOP_joint_010', 'MIDDLE_F_TOP_joint_09']
+  }[role] || [];
+  for (const name of candidates) {
+    const node = model.getObjectByName(name);
+    if (node) return node;
+  }
+  return null;
+}
+
 function normalizeLoadedHandModel(model, handedness = 'right') {
+  model.position.set(0, 0, 0);
+  model.rotation.set(0, 0, 0);
+  model.scale.set(1, 1, 1);
   model.updateMatrixWorld(true);
+
   handBox.setFromObject(model);
   handBox.getSize(handSize);
-  handBox.getCenter(handCenter);
   const maxDim = Math.max(handSize.x, handSize.y, handSize.z) || 1;
-  const desired = 0.285;
+  const desired = 0.255;
   const scale = desired / maxDim;
   model.scale.setScalar(scale);
-  model.position.set(-handCenter.x * scale, -handCenter.y * scale, -handCenter.z * scale);
-
-  // Asset fingers run along local +X. WebXR controller rays run along -Z.
-  // This basis maps +X -> -Z and lays the palm naturally across local X/Y.
-  handBasisMatrix.makeBasis(
-    new THREE.Vector3(0, 0, -1),
-    new THREE.Vector3(1, 0, 0),
-    new THREE.Vector3(0, -1, 0)
-  );
-  model.setRotationFromMatrix(handBasisMatrix);
-
-  // User calibration: the imported right hand was rotated 90 degrees clockwise
-  // from the controller ray, and the left hand 90 degrees counter-clockwise.
-  // Apply the opposite yaw so both hands point along the controller forward
-  // vector (-Z).
-  model.rotateY(handedness === 'right' ? Math.PI / 2 : -Math.PI / 2);
-
-  // Re-center after rotation so the hand no longer floats off-center from the
-  // controller grip point. The wrist stays near the controller, fingers forward.
   model.updateMatrixWorld(true);
-  handBox.setFromObject(model);
-  handBox.getCenter(handCenter);
-  model.position.x -= handCenter.x;
-  model.position.y -= handCenter.y + 0.006;
-  model.position.z -= handBox.max.z - 0.018;
 
-  // Tiny handedness offset helps the two hands sit naturally on each controller.
-  model.position.x += handedness === 'left' ? -0.008 : 0.008;
+  // Self-calibration from the GLB skeleton:
+  // wrist -> palm / middle-finger direction is the hand's natural forward axis.
+  // WebXR controller grip forward is local -Z. Align those directly instead of
+  // applying fixed +/-90 degree guesses.
+  const wrist = findHandNode(model, handedness, 'wrist');
+  const palm = findHandNode(model, handedness, 'palm') || findHandNode(model, handedness, 'middle');
+  if (wrist && palm) {
+    wrist.getWorldPosition(handWristWorld);
+    palm.getWorldPosition(handPalmWorld);
+    handForwardLocal.subVectors(handPalmWorld, handWristWorld).normalize();
+    if (handForwardLocal.lengthSq() > 0.0001) {
+      handAlignQuat.setFromUnitVectors(handForwardLocal, handForwardTarget);
+      model.quaternion.premultiply(handAlignQuat);
+    }
+  } else {
+    handAlignQuat.setFromUnitVectors(new THREE.Vector3(1, 0, 0), handForwardTarget);
+    model.quaternion.premultiply(handAlignQuat);
+  }
+
+  model.updateMatrixWorld(true);
+  const wristAfter = findHandNode(model, handedness, 'wrist');
+  if (wristAfter) {
+    wristAfter.getWorldPosition(handWristWorld);
+    model.position.sub(handWristWorld);
+  } else {
+    handBox.setFromObject(model);
+    handBox.getCenter(handCenter);
+    model.position.sub(handCenter);
+  }
+
+  // The WebXR grip pose sits inside the physical controller grip. Put the wrist
+  // slightly behind and below that origin so the fingers point naturally out of
+  // the controller instead of floating around its center.
+  model.position.x += handedness === 'left' ? -0.018 : 0.018;
+  model.position.y -= 0.035;
+  model.position.z -= 0.045;
 }
 
 function setupGripAction(container, model, clip) {
@@ -1535,9 +1532,10 @@ function setXRHandGrip(handModel, targetGrip, delta = 1 / 60) {
     const duration = handModel.userData.handClip.duration || 1;
     const action = handModel.userData.handAction;
     action.enabled = true;
-    action.paused = true;
+    action.paused = false;
     action.time = duration * t;
     handModel.userData.handMixer.update(0);
+    action.paused = true;
     return;
   }
 
@@ -1570,21 +1568,24 @@ function getGripButtonValueFromInputSource(source) {
 
 function updateXRHandModels(delta = 1 / 60) {
   const session = renderer.xr.getSession();
+  const handContainers = (typeof controllerGrips !== 'undefined' && controllerGrips.length) ? controllerGrips : controllers;
   if (!session) {
-    controllers.forEach((controller) => {
-      const target = controller.userData.selecting || controller.userData.squeezeGripping ? 1 : 0;
-      setXRHandGrip(controller.userData.handModel, target, delta);
+    handContainers.forEach((grip) => {
+      const paired = grip.userData.pairedController || grip;
+      const target = paired.userData.selecting || paired.userData.squeezeGripping ? 1 : 0;
+      setXRHandGrip(grip.userData.handModel, target, delta);
     });
     return;
   }
   const sources = Array.from(session.inputSources);
-  controllers.forEach((controller, index) => {
-    const handedness = controller.userData.handedness || (index === 0 ? 'left' : 'right');
+  handContainers.forEach((grip, index) => {
+    const handedness = grip.userData.handedness || (index === 0 ? 'left' : 'right');
     const fallback = sources[index];
     const source = sources.find((item) => item.handedness === handedness) || fallback;
+    const paired = grip.userData.pairedController || grip;
     const buttonGrip = getGripButtonValueFromInputSource(source);
-    const eventGrip = (controller.userData.selecting || controller.userData.squeezeGripping) ? 1 : 0;
-    setXRHandGrip(controller.userData.handModel, Math.max(buttonGrip, eventGrip), delta);
+    const eventGrip = (paired.userData.selecting || paired.userData.squeezeGripping) ? 1 : 0;
+    setXRHandGrip(grip.userData.handModel, Math.max(buttonGrip, eventGrip), delta);
   });
 }
 
@@ -1599,6 +1600,7 @@ function setControllerHandModel(controller, handedness = 'right') {
 }
 
 const controllers = [];
+const controllerGrips = [];
 for (let i = 0; i < 2; i++) {
   const controller = renderer.xr.getController(i);
   controller.userData.index = i;
@@ -1612,13 +1614,18 @@ for (let i = 0; i < 2; i++) {
   ray.scale.z = 9;
   controller.add(ray);
 
-  setControllerHandModel(controller, i === 0 ? 'left' : 'right');
+  const controllerGrip = renderer.xr.getControllerGrip(i);
+  controllerGrip.userData.index = i;
+  controllerGrip.userData.pairedController = controller;
+  controller.userData.visualGrip = controllerGrip;
+  setControllerHandModel(controllerGrip, i === 0 ? 'left' : 'right');
 
   controller.addEventListener('connected', (event) => {
     const handedness = event.data && (event.data.handedness === 'left' || event.data.handedness === 'right')
       ? event.data.handedness
       : (i === 0 ? 'left' : 'right');
-    setControllerHandModel(controller, handedness);
+    controller.userData.handedness = handedness;
+    setControllerHandModel(controllerGrip, handedness);
   });
 
   controller.addEventListener('disconnected', () => {
@@ -1670,7 +1677,9 @@ for (let i = 0; i < 2; i++) {
   });
 
   player.add(controller);
+  player.add(controllerGrip);
   controllers.push(controller);
+  controllerGrips.push(controllerGrip);
 }
 
 const videoRaycaster = new THREE.Raycaster();
@@ -1855,15 +1864,14 @@ function updateDesktopMovement(delta) {
 function extractGamepadStickAxes(gamepad) {
   if (!gamepad || !gamepad.axes) return { x: 0, y: 0 };
   const axes = gamepad.axes;
-  // Meta Quest / WebXR commonly exposes thumbsticks as axes[2]/axes[3],
-  // but some browsers/devices expose them as axes[0]/axes[1].
-  const candidates = [
-    { x: axes[2] || 0, y: axes[3] || 0 },
-    { x: axes[0] || 0, y: axes[1] || 0 }
-  ];
-  return candidates.reduce((best, cur) => (
-    Math.abs(cur.x) + Math.abs(cur.y) > Math.abs(best.x) + Math.abs(best.y) ? cur : best
-  ), { x: 0, y: 0 });
+  const safe = (v) => Number.isFinite(v) ? v : 0;
+  const stick23 = { x: safe(axes[2]), y: safe(axes[3]) };
+  const stick01 = { x: safe(axes[0]), y: safe(axes[1]) };
+  // Meta Quest / WebXR thumbsticks normally use axes[2]/axes[3]. Prefer them
+  // when they are present, because axes[0]/axes[1] can be a touchpad/thumb-rest
+  // source on some runtimes and makes movement feel world-fixed or skewed.
+  if (axes.length >= 4 && Math.abs(stick23.x) + Math.abs(stick23.y) > 0.02) return stick23;
+  return stick01;
 }
 
 function getXRInputAxesByHand(handedness) {
@@ -1903,16 +1911,34 @@ function getXRHeadCamera() {
   return xrCamera || camera;
 }
 
-function getXRHeadForwardHorizontal(out) {
-  const headCamera = getXRHeadCamera();
-  headCamera.updateMatrixWorld(true);
-  headCamera.getWorldQuaternion(tmpHeadQuaternion);
-  out.set(0, 0, -1).applyQuaternion(tmpHeadQuaternion);
-  out.y = 0;
-  if (out.lengthSq() < 0.0001) {
-    out.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y));
+function getXRHeadBasisHorizontal(forwardOut, rightOut) {
+  // Use the real view camera first, because the user expects translation to
+  // follow the direction they are currently looking, not fixed world axes.
+  camera.updateMatrixWorld(true);
+  camera.getWorldDirection(forwardOut);
+  forwardOut.y = 0;
+
+  if (forwardOut.lengthSq() < 0.0001) {
+    const headCamera = getXRHeadCamera();
+    headCamera.updateMatrixWorld(true);
+    headCamera.getWorldDirection(forwardOut);
+    forwardOut.y = 0;
   }
-  return out.normalize();
+
+  if (forwardOut.lengthSq() < 0.0001) {
+    forwardOut.set(Math.sin(player.rotation.y), 0, -Math.cos(player.rotation.y));
+  }
+
+  forwardOut.normalize();
+  rightOut.crossVectors(forwardOut, worldUpVec);
+  if (rightOut.lengthSq() < 0.0001) rightOut.set(1, 0, 0);
+  rightOut.normalize();
+  return { forward: forwardOut, right: rightOut };
+}
+
+function getXRHeadForwardHorizontal(out) {
+  getXRHeadBasisHorizontal(out, tmpSide);
+  return out;
 }
 
 function rotatePlayerAroundHead(deltaYaw) {
@@ -1978,31 +2004,24 @@ function updateXRMovement(delta) {
   const leftY = applyDeadzone(leftAxesRaw.y);
   const rightX = applyDeadzone(rightAxesRaw.x);
 
-  // Right controller: rotation only. No parallel translation is applied here.
+  // Right controller: rotation only.
   if (Math.abs(rightX) > 0) {
     const turnSpeed = 1.85;
     rotatePlayerAroundHead(-rightX * turnSpeed * delta);
   }
 
-  // Left controller: translation only. It never changes the view direction.
-  // Movement is based on the current headset/camera forward direction, not on
-  // fixed world axes. This keeps movement natural after physically looking
-  // around or after turning with the right stick.
+  // Left controller: translation only, always relative to the current view yaw.
+  // Push up = move toward what the headset is looking at. Left/right = strafe
+  // relative to that same view direction. No world-fixed X/Z movement is used.
   if (Math.abs(leftX) > 0 || Math.abs(leftY) > 0) {
-    // Move relative to the current headset/view direction. This uses the real
-    // XR sub-camera when available, not the fixed world axes nor only the
-    // player rig yaw.
-    getXRHeadForwardHorizontal(tmpDirection);
-    tmpSide.crossVectors(tmpDirection, worldUpVec).normalize();
-
-    const speed = 2.2;
-    const magnitude = Math.max(1, Math.hypot(leftX, leftY));
-    const moveScale = Math.min(1, Math.hypot(leftX, leftY));
-    if (moveScale > 0) {
-      const moveForward = -leftY / magnitude;
-      const moveSide = leftX / magnitude;
-      player.position.addScaledVector(tmpDirection, moveForward * speed * moveScale * delta);
-      player.position.addScaledVector(tmpSide, moveSide * speed * moveScale * delta);
+    getXRHeadBasisHorizontal(tmpDirection, tmpSide);
+    const move = new THREE.Vector3();
+    move.addScaledVector(tmpDirection, -leftY);
+    move.addScaledVector(tmpSide, leftX);
+    if (move.lengthSq() > 1) move.normalize();
+    if (move.lengthSq() > 0.0001) {
+      const speed = 2.2;
+      player.position.addScaledVector(move, speed * delta);
       clampPlayerPosition();
     }
   }
