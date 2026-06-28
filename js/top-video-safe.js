@@ -5,16 +5,12 @@
   const text = {
     en: {
       loading: 'Loading video...',
-      failed: 'Video could not be loaded. Showing the poster image.',
-      timeout: 'Video is taking too long. Showing the poster image.',
       soundButton: 'Play with sound',
       soundOn: 'Sound on',
       soundFailed: 'Tap once more to play with sound'
     },
     ja: {
       loading: '動画を読み込み中です...',
-      failed: '動画を読み込めませんでした。代わりにposter画像を表示しています。',
-      timeout: '動画の読み込みに時間がかかっています。代わりにposter画像を表示しています。',
       soundButton: '音声ありで再生',
       soundOn: '音声ありで再生中',
       soundFailed: 'もう一度タップすると音声ありで再生します'
@@ -42,14 +38,8 @@
   }
 
   function showFallback(container, reason) {
-    const fallback = document.getElementById('tm-video-fallback');
-    const fallbackText = fallback ? fallback.querySelector('[data-video-i18n]') : null;
-    if (fallback) fallback.hidden = false;
+    // Silent fallback: keep the poster image visible without showing any error text.
     mark(container, reason === 'timeout' ? 'tm-video-timeout' : 'tm-video-failed');
-    if (fallbackText) {
-      fallbackText.dataset.videoI18n = reason === 'timeout' ? 'timeout' : 'failed';
-    }
-    setText();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -72,8 +62,6 @@
       if (finished) return;
       finished = true;
       window.clearTimeout(timeoutId);
-      const fallback = document.getElementById('tm-video-fallback');
-      if (fallback) fallback.hidden = true;
       mark(container, 'tm-video-ready');
     }
 

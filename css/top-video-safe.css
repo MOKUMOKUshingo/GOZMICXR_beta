@@ -36,8 +36,8 @@
 }
 
 #tm-video-container.tm-video-ready #tm-video-loading-overlay,
-#tm-video-container.tm-video-failed #tm-video-loading-overlay,
-#tm-video-container.tm-video-timeout #tm-video-loading-overlay {
+#tm-video-container.tm-video-timeout #tm-video-loading-overlay,
+#tm-video-container.tm-video-failed #tm-video-loading-overlay {
     display: none;
 }
 

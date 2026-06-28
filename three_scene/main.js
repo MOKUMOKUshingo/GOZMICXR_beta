@@ -1320,7 +1320,7 @@ function loadXRHandAsset() {
     if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('xr_hand_grip.glb could not be loaded. Falling back to simple XR glove.', error);
+    console.warn('xr_hand_grip.glb load failed. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1343,17 +1343,17 @@ function createMinimalFallbackHand(handedness = 'right') {
   });
   const palm = new THREE.Mesh(new THREE.SphereGeometry(0.045, 24, 16), mat);
   palm.scale.set(0.72, 0.36, 1.06);
-  palm.position.set(side * 0.018, -0.030, -0.060);
+  palm.position.set(side * 0.018, -0.030, 0.060);
   group.add(palm);
   for (let i = 0; i < 4; i++) {
     const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.0085, 0.082 - i * 0.006, 10, 14), mat);
     finger.rotation.x = Math.PI / 2;
-    finger.position.set(side * (-0.028 + i * 0.018), -0.025, -0.126 - Math.abs(i - 1.5) * 0.006);
+    finger.position.set(side * (-0.028 + i * 0.018), -0.025, 0.126 + Math.abs(i - 1.5) * 0.006);
     group.add(finger);
   }
   const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.062, 10, 14), mat);
   thumb.rotation.set(Math.PI / 2, side * 0.45, side * -0.58);
-  thumb.position.set(side * 0.056, -0.032, -0.082);
+  thumb.position.set(side * 0.056, -0.032, 0.082);
   group.add(thumb);
   group.visible = true;
   return group;
@@ -1409,7 +1409,7 @@ const handCenter = new THREE.Vector3();
 const handWristWorld = new THREE.Vector3();
 const handPalmWorld = new THREE.Vector3();
 const handForwardLocal = new THREE.Vector3();
-const handForwardTarget = new THREE.Vector3(0, 0, -1);
+const handForwardTarget = new THREE.Vector3(0, 0, 1);
 const handAlignQuat = new THREE.Quaternion();
 
 function findHandNode(model, handedness, role) {
@@ -1442,8 +1442,9 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
 
   // Self-calibration from the GLB skeleton:
   // wrist -> palm / middle-finger direction is the hand's natural forward axis.
-  // WebXR controller grip forward is local -Z. Align those directly instead of
-  // applying fixed +/-90 degree guesses.
+  // On the tested WebXR grip pose, aligning this axis to local -Z made the hand
+  // point back toward the user. Align to local +Z so the fingers face away
+  // from the viewer along the controller body instead.
   const wrist = findHandNode(model, handedness, 'wrist');
   const palm = findHandNode(model, handedness, 'palm') || findHandNode(model, handedness, 'middle');
   if (wrist && palm) {
@@ -1473,9 +1474,9 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   // The WebXR grip pose sits inside the physical controller grip. Put the wrist
   // slightly behind and below that origin so the fingers point naturally out of
   // the controller instead of floating around its center.
-  model.position.x += handedness === 'left' ? -0.018 : 0.018;
-  model.position.y -= 0.035;
-  model.position.z -= 0.045;
+  model.position.x += handedness === 'left' ? -0.012 : 0.012;
+  model.position.y -= 0.032;
+  model.position.z += 0.030;
 }
 
 function setupGripAction(container, model, clip) {
