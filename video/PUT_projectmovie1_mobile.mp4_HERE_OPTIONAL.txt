@@ -1,2 +1,0 @@
-Optional mobile fallback. If smartphone playback fails, place a more compatible H.264/AAC MP4 here named projectmovie1_mobile.mp4.
-Recommended ffmpeg is in README_ADD_15_VIDEO_SCREEN_MOBILE.txt
