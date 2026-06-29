@@ -3,6 +3,7 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { SPACE_CONFIG } from './config.js';
 
 const LANG_KEY = 'cozmixSpaceLang';
 const sceneTexts = {
@@ -129,7 +130,7 @@ scene.fog = defaultFog;
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 180);
 camera.rotation.order = 'YXZ';
-const desktopCameraPosition = new THREE.Vector3(0, 2.0, 8.2);
+const desktopCameraPosition = new THREE.Vector3(...SPACE_CONFIG.camera.desktopPosition);
 camera.position.copy(desktopCameraPosition);
 
 const player = new THREE.Group();
@@ -271,9 +272,9 @@ ring.name = 'Start Position Climb Ring';
 // Three.js/WebXR uses Y as the vertical axis.  Raise the climbable
 // start ring by increasing Y, not Z.  X/Z stay at the protagonist start
 // position while topY defines the height the player can stand on.
-const START_RING_DISPLAY_Y = 0.60;
-const START_RING_COLLISION_TOP_Y = 2.00;
-const START_RING_RADIUS = 2.58;
+const START_RING_DISPLAY_Y = SPACE_CONFIG.startRing.displayY;
+const START_RING_COLLISION_TOP_Y = SPACE_CONFIG.startRing.collisionTopY;
+const START_RING_RADIUS = SPACE_CONFIG.startRing.radius;
 
 ring.position.set(0, START_RING_DISPLAY_Y, 0);
 ring.rotation.x = Math.PI / 2;
@@ -307,8 +308,8 @@ function getCurrentClimbGroundY() {
 }
 
 const video = document.getElementById('projectVideoSource');
-const PROJECT_VIDEO_SRC = '../video/projectmovie1.mp4';
-const PROJECT_VIDEO_MOBILE_SRC = '../video/projectmovie1_mobile.mp4';
+const PROJECT_VIDEO_SRC = SPACE_CONFIG.paths.projectVideo;
+const PROJECT_VIDEO_MOBILE_SRC = SPACE_CONFIG.paths.mobileProjectVideo;
 let selectedProjectVideoSrc = PROJECT_VIDEO_SRC;
 let selectedNativeProjectVideoSrc = PROJECT_VIDEO_SRC;
 let webVideoFallbackAvailable = false;
@@ -378,7 +379,7 @@ video.preload = 'auto';
 setProjectVideoSources(PROJECT_VIDEO_SRC);
 const projectVideoSourceReady = initializeProjectVideoSource();
 
-const posterTexture = loader.load('../img/title1-poster.jpg');
+const posterTexture = loader.load(SPACE_CONFIG.paths.posterImage);
 posterTexture.colorSpace = THREE.SRGBColorSpace;
 
 let videoTexture = null;
@@ -1023,14 +1024,14 @@ const projectScreenGroup = new THREE.Group();
 projectScreenGroup.name = 'Large High Tilted Project Movie Screen Group';
 // About 3x larger than the previous screen, placed about 4x higher and tilted
 // downward so it feels like a large VR cinema screen looking over the floor.
-projectScreenGroup.position.set(0, 9.1, -16.0);
-const projectScreenBasePitch = 0.48;
+projectScreenGroup.position.set(...SPACE_CONFIG.projectScreen.position);
+const projectScreenBasePitch = SPACE_CONFIG.projectScreen.basePitch;
 let projectScreenPitchOffset = 0;
 let projectScreenYawOffset = 0;
-const PROJECT_SCREEN_PITCH_MIN = -0.95;
-const PROJECT_SCREEN_PITCH_MAX = 0.95;
-const PROJECT_SCREEN_YAW_MIN = -1.20;
-const PROJECT_SCREEN_YAW_MAX = 1.20;
+const PROJECT_SCREEN_PITCH_MIN = SPACE_CONFIG.projectScreen.pitchMin;
+const PROJECT_SCREEN_PITCH_MAX = SPACE_CONFIG.projectScreen.pitchMax;
+const PROJECT_SCREEN_YAW_MIN = SPACE_CONFIG.projectScreen.yawMin;
+const PROJECT_SCREEN_YAW_MAX = SPACE_CONFIG.projectScreen.yawMax;
 function applyProjectScreenOrientation() {
   projectScreenGroup.rotation.set(
     projectScreenBasePitch + projectScreenPitchOffset,
@@ -1041,10 +1042,10 @@ function applyProjectScreenOrientation() {
 applyProjectScreenOrientation();
 portalGroup.add(projectScreenGroup);
 
-const projectScreenWidth = 17.08;
-const projectScreenHeight = 9.60;
+const projectScreenWidth = SPACE_CONFIG.projectScreen.width;
+const projectScreenHeight = SPACE_CONFIG.projectScreen.height;
 const videoScreen = new THREE.Mesh(
-  createParabolicScreenGeometry(projectScreenWidth, projectScreenHeight, 120, 68, 1.45),
+  createParabolicScreenGeometry(projectScreenWidth, projectScreenHeight, SPACE_CONFIG.projectScreen.segmentsX, SPACE_CONFIG.projectScreen.segmentsY, SPACE_CONFIG.projectScreen.curveDepth),
   videoMaterial
 );
 videoScreen.name = 'Project Movie Large High Parabolic Screen';
@@ -1067,7 +1068,7 @@ forwardButton3D.position.set(2.75, -5.35, 0.56);
 projectScreenGroup.add(forwardButton3D);
 addVideoInteractiveObject(forwardButton3D, 'forward');
 
-const projectScrubBar3D = makeVideoScrubBar('VR / Web', 'scrub-main', 9.2, 0.18);
+const projectScrubBar3D = makeVideoScrubBar('VR / Web', 'scrub-main', SPACE_CONFIG.projectScreen.scrubWidth, 0.18);
 projectScrubBar3D.position.set(0, -5.95, 0.58);
 projectScreenGroup.add(projectScrubBar3D);
 addVideoInteractiveObject(projectScrubBar3D, 'scrub-main');
@@ -1182,36 +1183,36 @@ arContent.add(arGrid);
 const arPortal = new THREE.Group();
 arContent.add(arPortal);
 
-const AR_SCREEN_BASE_WIDTH = 4.64;
-const AR_SCREEN_BASE_HEIGHT = 2.608;
-const AR_SCREEN_SEGMENTS_X = 96;
-const AR_SCREEN_SEGMENTS_Y = 56;
-const AR_SCREEN_CURVE_MIN = 0.04;
-const AR_SCREEN_CURVE_MAX = 1.25;
-const AR_SCREEN_SCALE_MIN = 0.45;
-const AR_SCREEN_SCALE_MAX = 3.20;
-let arScreenCurveDepth = 0.44;
+const AR_SCREEN_BASE_WIDTH = SPACE_CONFIG.arScreen.baseWidth;
+const AR_SCREEN_BASE_HEIGHT = SPACE_CONFIG.arScreen.baseHeight;
+const AR_SCREEN_SEGMENTS_X = SPACE_CONFIG.arScreen.segmentsX;
+const AR_SCREEN_SEGMENTS_Y = SPACE_CONFIG.arScreen.segmentsY;
+const AR_SCREEN_CURVE_MIN = SPACE_CONFIG.arScreen.curveMin;
+const AR_SCREEN_CURVE_MAX = SPACE_CONFIG.arScreen.curveMax;
+const AR_SCREEN_SCALE_MIN = SPACE_CONFIG.arScreen.scaleMin;
+const AR_SCREEN_SCALE_MAX = SPACE_CONFIG.arScreen.scaleMax;
+let arScreenCurveDepth = SPACE_CONFIG.arScreen.curveInitial;
 
 // AR screen spherical-coordinate control.  The center of arContent is the
 // initial reference point.  r is radial distance from that point, phi is
 // longitude around the vertical Y axis, and theta is latitude/elevation.
-const arScreenInitialOffset = new THREE.Vector3(0, 2.20, -1.10);
-const arScreenLookAtLocal = new THREE.Vector3(0, 1.20, 0);
+const arScreenInitialOffset = new THREE.Vector3(...SPACE_CONFIG.arScreen.initialOffset);
+const arScreenLookAtLocal = new THREE.Vector3(...SPACE_CONFIG.arScreen.lookAtLocal);
 const arScreenSpherical = {
   r: arScreenInitialOffset.length(),
   phi: Math.atan2(arScreenInitialOffset.x, -arScreenInitialOffset.z),
   theta: Math.asin(arScreenInitialOffset.y / arScreenInitialOffset.length())
 };
-const AR_SCREEN_R_MIN = 0.75;
-const AR_SCREEN_R_MAX = 7.50;
-const AR_SCREEN_THETA_MIN = -0.35;
-const AR_SCREEN_THETA_MAX = 1.32;
+const AR_SCREEN_R_MIN = SPACE_CONFIG.arScreen.rMin;
+const AR_SCREEN_R_MAX = SPACE_CONFIG.arScreen.rMax;
+const AR_SCREEN_THETA_MIN = SPACE_CONFIG.arScreen.thetaMin;
+const AR_SCREEN_THETA_MAX = SPACE_CONFIG.arScreen.thetaMax;
 let arScreenPitchOffset = 0;
 let arScreenYawOffset = 0;
-const AR_SCREEN_PITCH_MIN = -0.85;
-const AR_SCREEN_PITCH_MAX = 0.85;
-const AR_SCREEN_YAW_MIN = -1.25;
-const AR_SCREEN_YAW_MAX = 1.25;
+const AR_SCREEN_PITCH_MIN = SPACE_CONFIG.arScreen.pitchMin;
+const AR_SCREEN_PITCH_MAX = SPACE_CONFIG.arScreen.pitchMax;
+const AR_SCREEN_YAW_MIN = SPACE_CONFIG.arScreen.yawMin;
+const AR_SCREEN_YAW_MAX = SPACE_CONFIG.arScreen.yawMax;
 
 function applyARScreenSphericalTransform() {
   const cosTheta = Math.cos(arScreenSpherical.theta);
@@ -1223,7 +1224,7 @@ function applyARScreenSphericalTransform() {
   // Keep the parabolic screen facing the AR anchor/user side as it moves,
   // then apply AR-only controller angle offsets.
   arPortal.lookAt(arScreenLookAtLocal);
-  arPortal.rotateX(-0.10 + arScreenPitchOffset);
+  arPortal.rotateX(SPACE_CONFIG.arScreen.defaultDownTilt + arScreenPitchOffset);
   arPortal.rotateY(arScreenYawOffset);
 }
 applyARScreenSphericalTransform();
@@ -1643,7 +1644,7 @@ function createCapsulePart(radius, length, color, emissive = 0x123744) {
 
 
 const xrHandLoader = new GLTFLoader();
-const XR_HAND_ASSET_PATH = './assets/XRRightH_New2.glb';
+const XR_HAND_ASSET_PATH = SPACE_CONFIG.paths.handModel;
 let xrHandSource = null;
 let xrHandClip = null;
 let xrHandLoadPromise = null;
@@ -1657,7 +1658,7 @@ function loadXRHandAsset() {
     if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('XRRightH_New2.glb load failed. Falling back to simple XR glove.', error);
+    console.warn('XRRightH_New3.glb load failed. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1697,7 +1698,7 @@ function createMinimalFallbackHand(handedness = 'right') {
 }
 
 function removeOtherHandParts(root, handedness) {
-  // XRRightH_New2.glb is a right-hand-only asset.  Do not remove internal parts;
+  // XRRightH_New3.glb is a right-hand-only asset.  Do not remove internal parts;
   // the left hand is produced later by mirroring the whole model on local X.
   return root;
 }
@@ -1739,7 +1740,7 @@ const handForwardLocal = new THREE.Vector3();
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 function findHandNode(model, handedness, role) {
-  // XRRightH_New2.glb contains a right-hand skeleton only.  Both left and right
+  // XRRightH_New3.glb contains a right-hand skeleton only.  Both left and right
   // cloned hands therefore use the same node names; the left hand is mirrored
   // as a whole in normalizeLoadedHandModel().
   const candidates = {
@@ -1765,10 +1766,10 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   handBox.setFromObject(model);
   handBox.getSize(handSize);
   const maxDim = Math.max(handSize.x, handSize.y, handSize.z) || 1;
-  const desired = 0.255;
+  const desired = SPACE_CONFIG.hand.desiredSize;
   const baseScale = desired / maxDim;
 
-  // XRRightH_New2.glb default finger axis is approximately local +Y.
+  // XRRightH_New3.glb default finger axis is approximately local +Y.
   // WebXR controller grip forward is local -Z, so rotate +Y -> -Z.
   // For the left controller, mirror the right-hand GLB on local X to create a
   // left hand while preserving the same Grip animation curves.
@@ -1793,9 +1794,10 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
     model.position.sub(handCenter);
   }
 
-  model.position.x += handedness === 'left' ? -0.018 : 0.018;
-  model.position.y -= 0.018;
-  model.position.z -= 0.018;
+  const handOffset = handedness === 'left' ? SPACE_CONFIG.hand.offset.left : SPACE_CONFIG.hand.offset.right;
+  model.position.x += handOffset[0];
+  model.position.y += handOffset[1];
+  model.position.z += handOffset[2];
   model.updateMatrixWorld(true);
 }
 
@@ -1820,7 +1822,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
     if (!sourceScene) return;
     container.clear();
     const model = SkeletonUtils.clone(sourceScene);
-    model.name = `${handedness} XRRightH_New2.glb controller hand`;
+    model.name = `${handedness} XRRightH_New3.glb controller hand`;
     removeOtherHandParts(model, handedness);
     stylizeLoadedXRHand(model);
     normalizeLoadedHandModel(model, handedness);
@@ -1832,7 +1834,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
 
 function createXRHandModel(handedness = 'right') {
   const container = new THREE.Group();
-  container.name = `${handedness} XRRightH_New2.glb hand container`;
+  container.name = `${handedness} XRRightH_New3.glb hand container`;
   container.userData.handedness = handedness;
   container.userData.grip = 0;
   container.userData.gripTarget = 0;
@@ -2299,7 +2301,7 @@ function updateXRJump(delta) {
   const groundY = currentXRMode === 'vr' ? getCurrentClimbGroundY() : xrGroundY;
   const grounded = player.position.y <= groundY + 0.001;
   if (jumpPressed && !xrJumpButtonWasDown && grounded && currentXRMode === 'vr') {
-    xrVerticalVelocity = 8.375;
+    xrVerticalVelocity = SPACE_CONFIG.movement.vrJumpVelocity;
   }
   xrJumpButtonWasDown = jumpPressed;
 
@@ -2310,7 +2312,7 @@ function updateXRJump(delta) {
   }
 
   if (!grounded || xrVerticalVelocity > 0) {
-    xrVerticalVelocity -= 9.2 * delta;
+    xrVerticalVelocity -= SPACE_CONFIG.movement.gravity * delta;
     player.position.y += xrVerticalVelocity * delta;
     if (player.position.y < groundY) {
       player.position.y = groundY;
