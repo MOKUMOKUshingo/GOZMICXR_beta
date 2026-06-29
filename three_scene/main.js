@@ -1206,6 +1206,12 @@ const AR_SCREEN_R_MIN = 0.75;
 const AR_SCREEN_R_MAX = 7.50;
 const AR_SCREEN_THETA_MIN = -0.35;
 const AR_SCREEN_THETA_MAX = 1.32;
+let arScreenPitchOffset = 0;
+let arScreenYawOffset = 0;
+const AR_SCREEN_PITCH_MIN = -0.85;
+const AR_SCREEN_PITCH_MAX = 0.85;
+const AR_SCREEN_YAW_MIN = -1.25;
+const AR_SCREEN_YAW_MAX = 1.25;
 
 function applyARScreenSphericalTransform() {
   const cosTheta = Math.cos(arScreenSpherical.theta);
@@ -1214,9 +1220,11 @@ function applyARScreenSphericalTransform() {
     arScreenSpherical.r * Math.sin(arScreenSpherical.theta),
     -arScreenSpherical.r * cosTheta * Math.cos(arScreenSpherical.phi)
   );
-  // Keep the parabolic screen facing the AR anchor/user side as it moves.
+  // Keep the parabolic screen facing the AR anchor/user side as it moves,
+  // then apply AR-only controller angle offsets.
   arPortal.lookAt(arScreenLookAtLocal);
-  arPortal.rotateX(-0.10);
+  arPortal.rotateX(-0.10 + arScreenPitchOffset);
+  arPortal.rotateY(arScreenYawOffset);
 }
 applyARScreenSphericalTransform();
 
@@ -1458,13 +1466,14 @@ function getXRButtonValueByHand(handedness, indices) {
   return getButtonValue(getXRInputSourceByHand(handedness), indices);
 }
 
-function updateVRScreenAngleButtons(delta) {
-  if (currentXRMode !== 'vr') return;
+function updateARScreenAngleButtons(delta) {
+  if (currentXRMode !== 'ar' || !arContent.visible) return;
 
   // Meta Quest / WebXR common mapping:
   // right hand: A = button[4], B = button[5]
   // left hand : X = button[4], Y = button[5]
-  // Hold the buttons to smoothly adjust the large movie screen angle.
+  // In AR only, hold these buttons to adjust the AR movie screen angle.
+  // VR no longer uses A/B/X/Y for screen angle, so those buttons can jump.
   const a = getXRButtonValueByHand('right', [4]);
   const b = getXRButtonValueByHand('right', [5]);
   const x = getXRButtonValueByHand('left', [4]);
@@ -1476,24 +1485,24 @@ function updateVRScreenAngleButtons(delta) {
   let changed = false;
 
   if (Math.abs(pitchInput) > 0.01) {
-    projectScreenPitchOffset = THREE.MathUtils.clamp(
-      projectScreenPitchOffset + pitchInput * angleSpeed * delta,
-      PROJECT_SCREEN_PITCH_MIN,
-      PROJECT_SCREEN_PITCH_MAX
+    arScreenPitchOffset = THREE.MathUtils.clamp(
+      arScreenPitchOffset + pitchInput * angleSpeed * delta,
+      AR_SCREEN_PITCH_MIN,
+      AR_SCREEN_PITCH_MAX
     );
     changed = true;
   }
 
   if (Math.abs(yawInput) > 0.01) {
-    projectScreenYawOffset = THREE.MathUtils.clamp(
-      projectScreenYawOffset + yawInput * angleSpeed * delta,
-      PROJECT_SCREEN_YAW_MIN,
-      PROJECT_SCREEN_YAW_MAX
+    arScreenYawOffset = THREE.MathUtils.clamp(
+      arScreenYawOffset + yawInput * angleSpeed * delta,
+      AR_SCREEN_YAW_MIN,
+      AR_SCREEN_YAW_MAX
     );
     changed = true;
   }
 
-  if (changed) applyProjectScreenOrientation();
+  if (changed) applyARScreenSphericalTransform();
 }
 
 function updateARScreenControllerManipulation(delta) {
@@ -1634,7 +1643,7 @@ function createCapsulePart(radius, length, color, emissive = 0x123744) {
 
 
 const xrHandLoader = new GLTFLoader();
-const XR_HAND_ASSET_PATH = './assets/XRRightHand_grip_origin.glb';
+const XR_HAND_ASSET_PATH = './assets/XRRightH_New1.glb';
 let xrHandSource = null;
 let xrHandClip = null;
 let xrHandLoadPromise = null;
@@ -1648,7 +1657,7 @@ function loadXRHandAsset() {
     if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('XRRightHand_grip_origin.glb load failed. Falling back to simple XR glove.', error);
+    console.warn('XRRightH_New1.glb load failed. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1688,7 +1697,7 @@ function createMinimalFallbackHand(handedness = 'right') {
 }
 
 function removeOtherHandParts(root, handedness) {
-  // XRRightHand_grip_origin.glb is a right-hand-only asset.  Do not remove internal parts;
+  // XRRightH_New1.glb is a right-hand-only asset.  Do not remove internal parts;
   // the left hand is produced later by mirroring the whole model on local X.
   return root;
 }
@@ -1730,7 +1739,7 @@ const handForwardLocal = new THREE.Vector3();
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 function findHandNode(model, handedness, role) {
-  // XRRightHand_grip_origin.glb contains a right-hand skeleton only.  Both left and right
+  // XRRightH_New1.glb contains a right-hand skeleton only.  Both left and right
   // cloned hands therefore use the same node names; the left hand is mirrored
   // as a whole in normalizeLoadedHandModel().
   const candidates = {
@@ -1759,7 +1768,7 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   const desired = 0.255;
   const baseScale = desired / maxDim;
 
-  // XRRightHand_grip_origin.glb default finger axis is approximately local +Y.
+  // XRRightH_New1.glb default finger axis is approximately local +Y.
   // WebXR controller grip forward is local -Z, so rotate +Y -> -Z.
   // For the left controller, mirror the right-hand GLB on local X to create a
   // left hand while preserving the same Grip animation curves.
@@ -1811,7 +1820,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
     if (!sourceScene) return;
     container.clear();
     const model = SkeletonUtils.clone(sourceScene);
-    model.name = `${handedness} XRRightHand_grip_origin.glb controller hand`;
+    model.name = `${handedness} XRRightH_New1.glb controller hand`;
     removeOtherHandParts(model, handedness);
     stylizeLoadedXRHand(model);
     normalizeLoadedHandModel(model, handedness);
@@ -1823,7 +1832,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
 
 function createXRHandModel(handedness = 'right') {
   const container = new THREE.Group();
-  container.name = `${handedness} XRRightHand_grip_origin.glb hand container`;
+  container.name = `${handedness} XRRightH_New1.glb hand container`;
   container.userData.handedness = handedness;
   container.userData.grip = 0;
   container.userData.gripTarget = 0;
@@ -2270,9 +2279,10 @@ const xrGroundY = 0;
 function isJumpButtonPressedFromSource(source) {
   if (!source || !source.gamepad || !source.gamepad.buttons) return false;
   const buttons = source.gamepad.buttons;
-  // Thumbstick-click is used for jump. A/B/X/Y are reserved for VR screen angle control.
+  // VR jump accepts thumbstick-click plus A/B/X/Y.
+  // A/B/X/Y are used for AR screen angle only, not for VR screen angle.
   // Trigger is intentionally excluded because it is already used for selection.
-  return [3].some((index) => buttons[index] && buttons[index].pressed);
+  return [3, 4, 5].some((index) => buttons[index] && buttons[index].pressed);
 }
 
 function isXRJumpButtonPressed() {
@@ -2458,8 +2468,8 @@ function animate(timestamp, frame) {
   } else if (renderer.xr.isPresenting && currentXRMode === 'ar') {
     updateARHitTest(frame);
     updateARScreenControllerManipulation(delta);
+    updateARScreenAngleButtons(delta);
   } else if (renderer.xr.isPresenting) {
-    updateVRScreenAngleButtons(delta);
     updateXRMovement(delta);
     let anyTeleport = false;
     controllers.forEach((controller) => {

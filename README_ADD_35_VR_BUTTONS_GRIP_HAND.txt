@@ -1,3 +1,5 @@
+NOTE: Add36 supersedes the controller-button part of Add35. A/B/X/Y screen angle control is now AR-only, and VR uses those buttons for jump.
+
 Add35 changes
 
 - Base: Add34.
