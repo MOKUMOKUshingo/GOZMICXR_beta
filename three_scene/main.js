@@ -1451,6 +1451,14 @@ const handForwardLocal = new THREE.Vector3();
 // The xr_hand_grip.glb wrist -> palm/finger axis must therefore be aligned to -Z.
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
+// ADD30 calibration from actual XR screenshots/user measurement:
+// The visible index-finger direction after ADD29 was approximately
+//   (sqrt(3)/2, -1/2, 0)
+// in controller-grip local space.  Rotate that vector directly onto
+// the WebXR forward ray axis (0, 0, -1), i.e. the blue ray direction.
+const measuredIndexDirection = new THREE.Vector3(Math.sqrt(3) / 2, -0.5, 0).normalize();
+const indexDirectionTarget = new THREE.Vector3(0, 0, -1);
+const indexDirectionFixQuat = new THREE.Quaternion().setFromUnitVectors(measuredIndexDirection, indexDirectionTarget);
 
 function findHandNode(model, handedness, role) {
   const left = handedness === 'left';
@@ -1509,6 +1517,11 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   // the viewer when the controller was rolled.
   model.rotateZ(handedness === 'left' ? -Math.PI / 2 : Math.PI / 2);
   model.rotateY(handedness === 'left' ? Math.PI : 0);
+
+  // Final measured correction: align the currently visible index-finger axis
+  // (sqrt(3)/2, -1/2, 0) to controller-grip -Z.  Use premultiply so the
+  // correction is applied in the parent/controller-grip coordinate frame.
+  model.quaternion.premultiply(indexDirectionFixQuat);
 
   model.updateMatrixWorld(true);
   const wristAfter = findHandNode(model, handedness, 'wrist');
