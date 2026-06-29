@@ -422,6 +422,10 @@ function findProjectVideoAction(object) {
   return null;
 }
 
+function isARScreenManipulationAction(action) {
+  return typeof action === 'string' && action.startsWith('ar-');
+}
+
 function createParabolicScreenGeometry(width, height, widthSegments = 48, heightSegments = 28, depth = 0.42) {
   const geometry = new THREE.BufferGeometry();
   const positions = [];
@@ -796,6 +800,12 @@ function runProjectVideoAction(action, withSound = false) {
     seekProjectVideo(10);
   } else if (action === 'sound') {
     startProjectVideo(true, wantsXRSound ? 'xr-select' : 'manual');
+  } else if (action === 'ar-scale-up') {
+    multiplyARScreenScale(1.12);
+  } else if (action === 'ar-scale-down') {
+    multiplyARScreenScale(1 / 1.12);
+  } else if (action === 'ar-curve') {
+    adjustARScreenCurve(0.08);
   } else {
     toggleProjectVideo(withSound || wantsXRSound);
   }
@@ -1065,6 +1075,16 @@ arPortal.position.set(0, 2.20, -1.10);
 arPortal.rotation.x = 0.22;
 arContent.add(arPortal);
 
+const AR_SCREEN_BASE_WIDTH = 4.64;
+const AR_SCREEN_BASE_HEIGHT = 2.608;
+const AR_SCREEN_SEGMENTS_X = 96;
+const AR_SCREEN_SEGMENTS_Y = 56;
+const AR_SCREEN_CURVE_MIN = 0.04;
+const AR_SCREEN_CURVE_MAX = 1.25;
+const AR_SCREEN_SCALE_MIN = 0.45;
+const AR_SCREEN_SCALE_MAX = 3.20;
+let arScreenCurveDepth = 0.44;
+
 const arPortalRing = new THREE.Mesh(
   new THREE.TorusGeometry(2.36, 0.030, 16, 128),
   new THREE.MeshStandardMaterial({ color: 0x69e6ff, emissive: 0x0b8cb4, emissiveIntensity: 1.35 })
@@ -1079,13 +1099,13 @@ arVideoMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide
 });
 const arVideoScreen = new THREE.Mesh(
-  createParabolicScreenGeometry(4.64, 2.608, 72, 42, 0.44),
+  createParabolicScreenGeometry(AR_SCREEN_BASE_WIDTH, AR_SCREEN_BASE_HEIGHT, AR_SCREEN_SEGMENTS_X, AR_SCREEN_SEGMENTS_Y, arScreenCurveDepth),
   arVideoMaterial
 );
 arVideoScreen.name = 'Project Movie AR Parabolic Screen';
 arVideoScreen.position.z = -0.035;
 arPortal.add(arVideoScreen);
-addVideoInteractiveObject(arVideoScreen, 'toggle');
+addVideoInteractiveObject(arVideoScreen, 'ar-curve');
 
 // AR controller/screen-tap rays are less precise than desktop mouse rays.
 // Add a transparent, slightly larger touch target so a trigger aimed at the
@@ -1097,7 +1117,7 @@ const arVideoHitTarget = new THREE.Mesh(
 arVideoHitTarget.name = 'Project Movie AR Large Hit Target';
 arVideoHitTarget.position.z = 0.035;
 arPortal.add(arVideoHitTarget);
-addVideoInteractiveObject(arVideoHitTarget, 'toggle');
+addVideoInteractiveObject(arVideoHitTarget, 'ar-curve');
 
 const arRewindButton = makeVideoControlButton(tr.rewindVideo, 'rewind', 1.18, 0.38);
 arRewindButton.position.set(-1.72, -1.66, 0.20);
@@ -1113,6 +1133,16 @@ const arForwardButton = makeVideoControlButton(tr.forwardVideo, 'forward', 1.18,
 arForwardButton.position.set(1.72, -1.66, 0.20);
 arPortal.add(arForwardButton);
 addVideoInteractiveObject(arForwardButton, 'forward');
+
+const arScaleDownButton = makeVideoControlButton('SCALE -', 'ar-scale-down', 1.26, 0.38);
+arScaleDownButton.position.set(-1.15, -2.14, 0.20);
+arPortal.add(arScaleDownButton);
+addVideoInteractiveObject(arScaleDownButton, 'ar-scale-down');
+
+const arScaleUpButton = makeVideoControlButton('SCALE +', 'ar-scale-up', 1.26, 0.38);
+arScaleUpButton.position.set(1.15, -2.14, 0.20);
+arPortal.add(arScaleUpButton);
+addVideoInteractiveObject(arScaleUpButton, 'ar-scale-up');
 
 const arLabel = makeTextSprite(tr.arLabel, {
   width: 1024,
@@ -1246,6 +1276,102 @@ function placeCameraARContentInFrontOfCamera() {
   orientARContentTowardCamera();
   arContent.visible = true;
   return true;
+}
+
+const arManipForward = new THREE.Vector3();
+const arManipRight = new THREE.Vector3();
+const arManipMove = new THREE.Vector3();
+const arManipWorldA = new THREE.Vector3();
+const arManipWorldB = new THREE.Vector3();
+const arManipLocalA = new THREE.Vector3();
+const arManipLocalB = new THREE.Vector3();
+
+function moveObjectByWorldVector(object, worldVector) {
+  if (!object || !object.parent || worldVector.lengthSq() < 0.0000001) return;
+  object.updateMatrixWorld(true);
+  object.getWorldPosition(arManipWorldA);
+  arManipWorldB.copy(arManipWorldA).add(worldVector);
+  arManipLocalA.copy(arManipWorldA);
+  arManipLocalB.copy(arManipWorldB);
+  object.parent.worldToLocal(arManipLocalA);
+  object.parent.worldToLocal(arManipLocalB);
+  object.position.add(arManipLocalB.sub(arManipLocalA));
+}
+
+function setARScreenScale(nextScale) {
+  const scale = THREE.MathUtils.clamp(nextScale, AR_SCREEN_SCALE_MIN, AR_SCREEN_SCALE_MAX);
+  arPortal.scale.setScalar(scale);
+}
+
+function multiplyARScreenScale(factor) {
+  setARScreenScale(arPortal.scale.x * factor);
+}
+
+function rebuildARVideoScreenGeometry() {
+  if (!arVideoScreen) return;
+  const oldGeometry = arVideoScreen.geometry;
+  arVideoScreen.geometry = createParabolicScreenGeometry(
+    AR_SCREEN_BASE_WIDTH,
+    AR_SCREEN_BASE_HEIGHT,
+    AR_SCREEN_SEGMENTS_X,
+    AR_SCREEN_SEGMENTS_Y,
+    arScreenCurveDepth
+  );
+  if (oldGeometry && oldGeometry.dispose) oldGeometry.dispose();
+}
+
+function adjustARScreenCurve(deltaDepth) {
+  const next = THREE.MathUtils.clamp(arScreenCurveDepth + deltaDepth, AR_SCREEN_CURVE_MIN, AR_SCREEN_CURVE_MAX);
+  if (Math.abs(next - arScreenCurveDepth) < 0.0001) return;
+  arScreenCurveDepth = next;
+  rebuildARVideoScreenGeometry();
+}
+
+function updateARScreenControllerManipulation(delta) {
+  if (currentXRMode !== 'ar' || !arContent.visible) return;
+
+  const leftAxes = getXRInputAxesByHand('left');
+  const rightAxes = getXRInputAxesByHand('right');
+  const leftX = applyDeadzone(leftAxes.x, 0.16);
+  const leftY = applyDeadzone(leftAxes.y, 0.16);
+  const rightX = applyDeadzone(rightAxes.x, 0.16);
+  const rightY = applyDeadzone(rightAxes.y, 0.16);
+
+  // Left stick: translate the AR movie screen relative to the current camera.
+  // X = screen left/right.  Y = depth forward/back.  Hold squeeze while moving
+  // the left stick up/down to translate the screen vertically instead.
+  if (Math.abs(leftX) > 0 || Math.abs(leftY) > 0) {
+    const activeCamera = getActiveViewCamera();
+    activeCamera.updateMatrixWorld(true);
+    activeCamera.getWorldDirection(arManipForward);
+    arManipForward.y = 0;
+    if (arManipForward.lengthSq() < 0.0001) arManipForward.set(0, 0, -1);
+    arManipForward.normalize();
+    arManipRight.crossVectors(arManipForward, worldUpVec).normalize();
+
+    const verticalMode = controllers.some((controller) => controller.userData.handedness === 'left' && controller.userData.squeezeGripping);
+    arManipMove.set(0, 0, 0);
+    arManipMove.addScaledVector(arManipRight, leftX);
+    if (verticalMode) arManipMove.y += -leftY;
+    else arManipMove.addScaledVector(arManipForward, -leftY);
+
+    if (arManipMove.lengthSq() > 1) arManipMove.normalize();
+    moveObjectByWorldVector(arPortal, arManipMove.multiplyScalar(0.72 * delta));
+  }
+
+  // Right stick: rotate only the AR movie screen.  It does not move the user.
+  if (Math.abs(rightX) > 0 || Math.abs(rightY) > 0) {
+    arPortal.rotation.y += -rightX * 1.45 * delta;
+    arPortal.rotation.x = THREE.MathUtils.clamp(arPortal.rotation.x + rightY * 1.10 * delta, -0.75, 0.85);
+  }
+
+  // Hold trigger while pointing at the parabolic AR screen to increase curvature.
+  // Hold squeeze at the same time to decrease it.  This avoids adding another UI.
+  controllers.forEach((controller) => {
+    if (!controller.userData.arCurveAdjusting) return;
+    const direction = controller.userData.squeezeGripping ? -1 : 1;
+    adjustARScreenCurve(direction * 0.36 * delta);
+  });
 }
 
 async function startCameraARFallback() {
@@ -1671,6 +1797,7 @@ for (let i = 0; i < 2; i++) {
   controller.userData.index = i;
   controller.userData.selecting = false;
   controller.userData.squeezeGripping = false;
+  controller.userData.arCurveAdjusting = false;
   controller.userData.teleportPoint = new THREE.Vector3();
   controller.userData.hasTeleportPoint = false;
 
@@ -1696,6 +1823,7 @@ for (let i = 0; i < 2; i++) {
   controller.addEventListener('disconnected', () => {
     controller.userData.selecting = false;
     controller.userData.squeezeGripping = false;
+    controller.userData.arCurveAdjusting = false;
   });
 
   controller.addEventListener('squeezestart', () => {
@@ -1707,25 +1835,28 @@ for (let i = 0; i < 2; i++) {
   });
 
   controller.addEventListener('selectstart', () => {
-    if (currentXRMode === 'ar') {
-      controller.userData.selecting = true;
-      return;
-    }
     controller.userData.selecting = true;
+    if (currentXRMode === 'ar' && arContent.visible) {
+      const arAction = getProjectVideoActionFromController(controller, true);
+      if (arAction === 'ar-curve') {
+        controller.userData.arCurveAdjusting = true;
+        adjustARScreenCurve(0.02);
+      }
+    }
   });
   controller.addEventListener('selectend', () => {
     if (currentXRMode === 'ar') {
+      const wasCurving = controller.userData.arCurveAdjusting;
+      controller.userData.arCurveAdjusting = false;
       const arAction = arContent.visible ? getProjectVideoActionFromController(controller, true) : null;
-      if (arAction) {
+      if (wasCurving) {
+        // Curvature is adjusted continuously while the trigger is held on the
+        // AR parabolic screen.  Do not also toggle video playback on release.
+      } else if (arAction) {
         runProjectVideoAction(arAction, true);
       } else if (!arContent.visible) {
         const placed = placeARContent();
         if (!placed) placeARContentInFrontOfCamera();
-      } else {
-        // If the mini gallery is already visible and the trigger missed the
-        // small screen, keep the content usable by re-orienting it toward the
-        // current camera instead of doing nothing.
-        orientARContentTowardCamera();
       }
       controller.userData.selecting = false;
       return;
@@ -2209,6 +2340,7 @@ function animate(timestamp, frame) {
     placeCameraARContentInFrontOfCamera();
   } else if (renderer.xr.isPresenting && currentXRMode === 'ar') {
     updateARHitTest(frame);
+    updateARScreenControllerManipulation(delta);
   } else if (renderer.xr.isPresenting) {
     updateXRMovement(delta);
     let anyTeleport = false;
