@@ -1451,7 +1451,9 @@ function updateARScreenControllerManipulation(delta) {
   const rightY = applyDeadzone(rightAxes.y, 0.14);
 
   // Left stick: spherical longitude phi and latitude theta.
-  // Right stick: radial distance r and parabolic curvature depth.
+  // Right stick: screen scale and parabolic curvature depth.
+  // The radial distance r stays fixed unless changed elsewhere; triggers are
+  // no longer used for screen scaling, so they remain free for play/seek UI.
   let changedSpherical = false;
   if (Math.abs(leftX) > 0) {
     arScreenSpherical.phi += leftX * 1.35 * delta;
@@ -1465,37 +1467,17 @@ function updateARScreenControllerManipulation(delta) {
     );
     changedSpherical = true;
   }
-  if (Math.abs(rightY) > 0) {
-    arScreenSpherical.r = THREE.MathUtils.clamp(
-      arScreenSpherical.r - rightY * 1.15 * delta,
-      AR_SCREEN_R_MIN,
-      AR_SCREEN_R_MAX
-    );
-    changedSpherical = true;
-  }
   if (changedSpherical) applyARScreenSphericalTransform();
 
-  if (Math.abs(rightX) > 0) {
-    adjustARScreenCurve(rightX * 0.55 * delta);
+  // Right stick vertical replaces the old radial-distance control:
+  // push up to enlarge, pull down to shrink.
+  if (Math.abs(rightY) > 0) {
+    multiplyARScreenScale(Math.exp(-rightY * 0.90 * delta));
   }
 
-  // Triggers scale the AR screen directly; no SCALE +/- boards are used.
-  // Left trigger shrinks, right trigger enlarges.  If a trigger is held on a
-  // scrub bar, scrubbing takes priority over scale for that controller.
-  let scaleDelta = 0;
-  controllers.forEach((controller) => {
-    const handedness = controller.userData.handedness || '';
-    if (controller.userData.selecting) {
-      if (processControllerVideoScrub(controller)) return;
-      // If the trigger is being used on a play/seek button, do not also scale.
-      if (getProjectVideoActionFromController(controller, false)) return;
-    }
-    const trigger = getXRTriggerValueByHand(handedness);
-    if (trigger <= 0.04) return;
-    scaleDelta += handedness === 'left' ? -trigger : trigger;
-  });
-  if (Math.abs(scaleDelta) > 0.001) {
-    multiplyARScreenScale(Math.exp(scaleDelta * 0.82 * delta));
+  // Right stick horizontal controls the parabolic curvature.
+  if (Math.abs(rightX) > 0) {
+    adjustARScreenCurve(rightX * 0.55 * delta);
   }
 }
 
@@ -1596,7 +1578,7 @@ function createCapsulePart(radius, length, color, emissive = 0x123744) {
 
 
 const xrHandLoader = new GLTFLoader();
-const XR_HAND_ASSET_PATH = './assets/xr_hand_grip.glb';
+const XR_HAND_ASSET_PATH = './assets/XRRightHand.glb';
 let xrHandSource = null;
 let xrHandClip = null;
 let xrHandLoadPromise = null;
@@ -1606,11 +1588,11 @@ function loadXRHandAsset() {
   if (xrHandLoadPromise) return xrHandLoadPromise;
   xrHandLoadPromise = xrHandLoader.loadAsync(XR_HAND_ASSET_PATH).then((gltf) => {
     xrHandSource = gltf.scene;
-    xrHandClip = THREE.AnimationClip.findByName(gltf.animations || [], 'Grip') || (gltf.animations && gltf.animations[0]) || null;
+    xrHandClip = THREE.AnimationClip.findByName(gltf.animations || [], 'Grip') || THREE.AnimationClip.findByName(gltf.animations || [], 'Take 001') || (gltf.animations && gltf.animations[0]) || null;
     if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('xr_hand_grip.glb load failed. Falling back to simple XR glove.', error);
+    console.warn('XRRightHand.glb load failed. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1650,21 +1632,9 @@ function createMinimalFallbackHand(handedness = 'right') {
 }
 
 function removeOtherHandParts(root, handedness) {
-  // xr_hand_grip.glb contains both hands. Keep only the requested side so each
-  // controller receives one correct GLB hand instead of an offset double-hand.
-  // In this asset, GLOBAL_MAIN_CONTROL_R is the right-hand rig and
-  // GLOBAL_MAIN_CONTROL_R1 is the mirrored left-hand rig.
-  const removeNames = handedness === 'left'
-    ? ['Hand_Low', 'GLOBAL_MAIN_CONTROL_R']
-    : ['Hand_Low1', 'GLOBAL_MAIN_CONTROL_R1'];
-  const removeSet = new Set(removeNames);
-  const toRemove = [];
-  root.traverse((obj) => {
-    if (removeSet.has(obj.name)) toRemove.push(obj);
-  });
-  toRemove.forEach((obj) => {
-    if (obj.parent) obj.parent.remove(obj);
-  });
+  // XRRightHand.glb is a right-hand-only asset.  Do not remove internal parts;
+  // the left hand is produced later by mirroring the whole model on local X.
+  return root;
 }
 
 function stylizeLoadedXRHand(root) {
@@ -1704,11 +1674,14 @@ const handForwardLocal = new THREE.Vector3();
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 function findHandNode(model, handedness, role) {
-  const left = handedness === 'left';
+  // XRRightHand.glb contains a right-hand skeleton only.  Both left and right
+  // cloned hands therefore use the same node names; the left hand is mirrored
+  // as a whole in normalizeLoadedHandModel().
   const candidates = {
-    wrist: left ? ['Root_joint_023', '_rootJoint'] : ['Root_joint_01', '_rootJoint'],
-    palm: left ? ['HANDPALM_joint_024', 'HANDPALM_cntrl'] : ['HANDPALM_joint_02', 'HANDPALM_cntrl'],
-    middle: left ? ['MIDDLE_F_UP_TOP_joint_032', 'MIDDLE_F_TOP_joint_031'] : ['MIDDLE_F_UP_TOP_joint_010', 'MIDDLE_F_TOP_joint_09']
+    wrist: ['Root_joint_01', '_rootJoint'],
+    palm: ['HANDPALM_joint_02', 'HANDPALM_cntrl'],
+    middle: ['MIDDLE_F_UP_TOP_joint_010', 'MIDDLE_F_TOP_joint_09', 'MIDDLE_F_BASE_joint_07'],
+    index: ['INDEX_UP_TOP_joint_00', 'INDEX_TOP_joint_05', 'INDEX_BASE_joint_03']
   }[role] || [];
   for (const name of candidates) {
     const node = model.getObjectByName(name);
@@ -1720,6 +1693,7 @@ function findHandNode(model, handedness, role) {
 function normalizeLoadedHandModel(model, handedness = 'right') {
   model.position.set(0, 0, 0);
   model.rotation.set(0, 0, 0);
+  model.quaternion.identity();
   model.scale.set(1, 1, 1);
   model.updateMatrixWorld(true);
 
@@ -1727,44 +1701,26 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   handBox.getSize(handSize);
   const maxDim = Math.max(handSize.x, handSize.y, handSize.z) || 1;
   const desired = 0.255;
-  const scale = desired / maxDim;
-  model.scale.setScalar(scale);
+  const baseScale = desired / maxDim;
+
+  // XRRightHand.glb default finger axis is approximately local +Y.
+  // WebXR controller grip forward is local -Z, so rotate +Y -> -Z.
+  // For the left controller, mirror the right-hand GLB on local X to create a
+  // left hand while preserving the same Grip animation curves.
+  model.scale.set(
+    handedness === 'left' ? -baseScale : baseScale,
+    baseScale,
+    baseScale
+  );
+  model.rotation.set(-Math.PI / 2, 0, 0);
   model.updateMatrixWorld(true);
 
-  // ADD29 hand placement fix:
-  // Attach the GLB to WebXR's controller grip pose, not to the laser ray.
-  // From the screenshots, the old transform left the wrist offset from the
-  // controller and made the fingers rise upward when the controller was pointed
-  // straight forward.  The safest calibration is:
-  //   1) detect wrist -> palm/finger direction from the GLB skeleton,
-  //   2) align that direction to controller-grip -Z,
-  //   3) roll the hand into a neutral palm-down controller grip,
-  //   4) place the wrist very near the controller grip origin.
+  // Place the wrist at the physical controller grip origin.  This makes the
+  // visible hand follow the actual controller position instead of the target-ray
+  // laser.  The small offsets keep the palm just below/forward of the grip.
   const wrist = findHandNode(model, handedness, 'wrist');
-  const palm = findHandNode(model, handedness, 'palm') || findHandNode(model, handedness, 'middle');
-  if (wrist && palm) {
+  if (wrist) {
     wrist.getWorldPosition(handWristWorld);
-    palm.getWorldPosition(handPalmWorld);
-    handForwardLocal.subVectors(handPalmWorld, handWristWorld).normalize();
-    if (handForwardLocal.lengthSq() > 0.0001) {
-      handAlignQuat.setFromUnitVectors(handForwardLocal, handForwardTarget);
-      model.quaternion.premultiply(handAlignQuat);
-    }
-  } else {
-    handAlignQuat.setFromUnitVectors(new THREE.Vector3(1, 0, 0), handForwardTarget);
-    model.quaternion.premultiply(handAlignQuat);
-  }
-
-  // Roll correction after the forward-axis alignment.  This replaces the older
-  // accumulated X/Z trial rotations, which made the hand point toward/away from
-  // the viewer when the controller was rolled.
-  model.rotateZ(handedness === 'left' ? -Math.PI / 2 : Math.PI / 2);
-  model.rotateY(handedness === 'left' ? Math.PI : 0);
-
-  model.updateMatrixWorld(true);
-  const wristAfter = findHandNode(model, handedness, 'wrist');
-  if (wristAfter) {
-    wristAfter.getWorldPosition(handWristWorld);
     model.position.sub(handWristWorld);
   } else {
     handBox.setFromObject(model);
@@ -1772,12 +1728,9 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
     model.position.sub(handCenter);
   }
 
-  // Wrist-to-controller offset: keep the wrist close to the physical grip and
-  // extend the fingers forward along controller -Z.  The small side offset keeps
-  // the left/right hands from sitting on the controller center line.
-  model.position.x += handedness === 'left' ? -0.040 : 0.040;
-  model.position.y -= 0.030;
-  model.position.z -= 0.055;
+  model.position.x += handedness === 'left' ? -0.018 : 0.018;
+  model.position.y -= 0.018;
+  model.position.z -= 0.018;
   model.updateMatrixWorld(true);
 }
 
@@ -1802,7 +1755,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
     if (!sourceScene) return;
     container.clear();
     const model = SkeletonUtils.clone(sourceScene);
-    model.name = `${handedness} xr_hand_grip.glb controller hand`;
+    model.name = `${handedness} XRRightHand.glb controller hand`;
     removeOtherHandParts(model, handedness);
     stylizeLoadedXRHand(model);
     normalizeLoadedHandModel(model, handedness);
@@ -1814,7 +1767,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
 
 function createXRHandModel(handedness = 'right') {
   const container = new THREE.Group();
-  container.name = `${handedness} xr_hand_grip.glb hand container`;
+  container.name = `${handedness} XRRightHand.glb hand container`;
   container.userData.handedness = handedness;
   container.userData.grip = 0;
   container.userData.gripTarget = 0;
