@@ -273,25 +273,26 @@ ring.name = 'Start Position Climb Ring';
 // Three.js/WebXR uses Y as the vertical axis.  Raise the climbable
 // start ring by increasing Y, not Z.  X/Z stay at the protagonist start
 // position while topY defines the height the player can stand on.
-const START_RING_TOP_Y = 1.20;
+const START_RING_DISPLAY_Y = 0.60;
+const START_RING_COLLISION_TOP_Y = 2.00;
 const START_RING_RADIUS = 2.58;
 
-ring.position.set(0, START_RING_TOP_Y, 0);
+ring.position.set(0, START_RING_DISPLAY_Y, 0);
 ring.rotation.x = Math.PI / 2;
 portalGroup.add(ring);
 
-// Invisible collision volume for the start ring.  It now extends from ground
-// level up to START_RING_TOP_Y, so the player can step/climb onto the higher
-// blue ring platform instead of passing through it.
+// Invisible collision volume for the start ring.
+// The visible blue ring stays at y=0.60, while the climb/collision column
+// extends from the ground to y=2.00 and the walkable platform height is y=2.00.
 const startRingCollision = new THREE.Mesh(
-  new THREE.CylinderGeometry(START_RING_RADIUS, START_RING_RADIUS, START_RING_TOP_Y, 64),
+  new THREE.CylinderGeometry(START_RING_RADIUS, START_RING_RADIUS, START_RING_COLLISION_TOP_Y, 64),
   new THREE.MeshBasicMaterial({ visible: false })
 );
 startRingCollision.name = 'Start Position Climb Ring Collision';
-startRingCollision.position.set(0, START_RING_TOP_Y / 2, 0);
+startRingCollision.position.set(0, START_RING_COLLISION_TOP_Y / 2, 0);
 portalGroup.add(startRingCollision);
 
-const startRingPlatform = { x: 0, z: 0, radius: START_RING_RADIUS, topY: START_RING_TOP_Y };
+const startRingPlatform = { x: 0, z: 0, radius: START_RING_RADIUS, topY: START_RING_COLLISION_TOP_Y };
 const tmpClimbHeadWorld = new THREE.Vector3();
 
 function getClimbGroundYAtXZ(x, z) {
@@ -1446,7 +1447,9 @@ const handCenter = new THREE.Vector3();
 const handWristWorld = new THREE.Vector3();
 const handPalmWorld = new THREE.Vector3();
 const handForwardLocal = new THREE.Vector3();
-const handForwardTarget = new THREE.Vector3(0, 0, 1);
+// WebXR controller-grip space uses -Z as the physical controller forward axis.
+// The xr_hand_grip.glb wrist -> palm/finger axis must therefore be aligned to -Z.
+const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 
 function findHandNode(model, handedness, role) {
@@ -1477,11 +1480,15 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   model.scale.setScalar(scale);
   model.updateMatrixWorld(true);
 
-  // Self-calibration from the GLB skeleton:
-  // wrist -> palm / middle-finger direction is the hand's natural forward axis.
-  // Align the wrist -> palm/finger direction to the WebXR grip forward axis.
-  // The previous -Z alignment made xr_hand_grip.glb face back toward the player.
-  // For this asset in WebXR grip space, the correct visible hand direction is +Z.
+  // ADD29 hand placement fix:
+  // Attach the GLB to WebXR's controller grip pose, not to the laser ray.
+  // From the screenshots, the old transform left the wrist offset from the
+  // controller and made the fingers rise upward when the controller was pointed
+  // straight forward.  The safest calibration is:
+  //   1) detect wrist -> palm/finger direction from the GLB skeleton,
+  //   2) align that direction to controller-grip -Z,
+  //   3) roll the hand into a neutral palm-down controller grip,
+  //   4) place the wrist very near the controller grip origin.
   const wrist = findHandNode(model, handedness, 'wrist');
   const palm = findHandNode(model, handedness, 'palm') || findHandNode(model, handedness, 'middle');
   if (wrist && palm) {
@@ -1497,6 +1504,12 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
     model.quaternion.premultiply(handAlignQuat);
   }
 
+  // Roll correction after the forward-axis alignment.  This replaces the older
+  // accumulated X/Z trial rotations, which made the hand point toward/away from
+  // the viewer when the controller was rolled.
+  model.rotateZ(handedness === 'left' ? -Math.PI / 2 : Math.PI / 2);
+  model.rotateY(handedness === 'left' ? Math.PI : 0);
+
   model.updateMatrixWorld(true);
   const wristAfter = findHandNode(model, handedness, 'wrist');
   if (wristAfter) {
@@ -1508,24 +1521,12 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
     model.position.sub(handCenter);
   }
 
-  // The WebXR grip pose sits inside the physical controller grip. Put the wrist
-  // slightly behind and below that origin so the fingers point naturally out of
-  // the controller instead of floating around its center.
-  model.position.x += handedness === 'left' ? -0.012 : 0.012;
-  model.position.y -= 0.032;
-  model.position.z += 0.030;
-
-  // ADD25: The latest hand placement/axis was close, but the whole GLB hand
-  // still needed a final local X-axis correction.  Apply this AFTER the
-  // existing wrist-centering and controller-offset logic so it rotates around
-  // the current xr_hand_grip.glb hand origin without changing the established
-  // controller attachment position.
-  model.rotateX(-Math.PI / 2);
-
-  // ADD26: Apply the requested additional rotations relative to the latest
-  // xr_hand_grip.glb position/axis: first local X -45deg, then local Z 180deg.
-  model.rotateX(-Math.PI / 4);
-  model.rotateZ(Math.PI);
+  // Wrist-to-controller offset: keep the wrist close to the physical grip and
+  // extend the fingers forward along controller -Z.  The small side offset keeps
+  // the left/right hands from sitting on the controller center line.
+  model.position.x += handedness === 'left' ? -0.040 : 0.040;
+  model.position.y -= 0.030;
+  model.position.z -= 0.055;
   model.updateMatrixWorld(true);
 }
 
