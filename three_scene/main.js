@@ -1643,7 +1643,7 @@ function createCapsulePart(radius, length, color, emissive = 0x123744) {
 
 
 const xrHandLoader = new GLTFLoader();
-const XR_HAND_ASSET_PATH = './assets/XRRightH_New1.glb';
+const XR_HAND_ASSET_PATH = './assets/XRRightH_New2.glb';
 let xrHandSource = null;
 let xrHandClip = null;
 let xrHandLoadPromise = null;
@@ -1657,7 +1657,7 @@ function loadXRHandAsset() {
     if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('XRRightH_New1.glb load failed. Falling back to simple XR glove.', error);
+    console.warn('XRRightH_New2.glb load failed. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1697,7 +1697,7 @@ function createMinimalFallbackHand(handedness = 'right') {
 }
 
 function removeOtherHandParts(root, handedness) {
-  // XRRightH_New1.glb is a right-hand-only asset.  Do not remove internal parts;
+  // XRRightH_New2.glb is a right-hand-only asset.  Do not remove internal parts;
   // the left hand is produced later by mirroring the whole model on local X.
   return root;
 }
@@ -1739,7 +1739,7 @@ const handForwardLocal = new THREE.Vector3();
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 function findHandNode(model, handedness, role) {
-  // XRRightH_New1.glb contains a right-hand skeleton only.  Both left and right
+  // XRRightH_New2.glb contains a right-hand skeleton only.  Both left and right
   // cloned hands therefore use the same node names; the left hand is mirrored
   // as a whole in normalizeLoadedHandModel().
   const candidates = {
@@ -1768,7 +1768,7 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   const desired = 0.255;
   const baseScale = desired / maxDim;
 
-  // XRRightH_New1.glb default finger axis is approximately local +Y.
+  // XRRightH_New2.glb default finger axis is approximately local +Y.
   // WebXR controller grip forward is local -Z, so rotate +Y -> -Z.
   // For the left controller, mirror the right-hand GLB on local X to create a
   // left hand while preserving the same Grip animation curves.
@@ -1820,7 +1820,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
     if (!sourceScene) return;
     container.clear();
     const model = SkeletonUtils.clone(sourceScene);
-    model.name = `${handedness} XRRightH_New1.glb controller hand`;
+    model.name = `${handedness} XRRightH_New2.glb controller hand`;
     removeOtherHandParts(model, handedness);
     stylizeLoadedXRHand(model);
     normalizeLoadedHandModel(model, handedness);
@@ -1832,7 +1832,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
 
 function createXRHandModel(handedness = 'right') {
   const container = new THREE.Group();
-  container.name = `${handedness} XRRightH_New1.glb hand container`;
+  container.name = `${handedness} XRRightH_New2.glb hand container`;
   container.userData.handedness = handedness;
   container.userData.grip = 0;
   container.userData.gripTarget = 0;

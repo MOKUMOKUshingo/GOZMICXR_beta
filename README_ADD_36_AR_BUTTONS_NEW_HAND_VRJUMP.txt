@@ -3,8 +3,8 @@ Add36 changes
 Base: 3d5start54_add_35_vr_buttons_grip_hand.zip
 
 1. XR hand model replacement
-- Replaced the previous XR hand GLB with three_scene/assets/XRRightH_New1.glb.
-- The loader now uses ./assets/XRRightH_New1.glb.
+- Replaced the previous XR hand GLB with three_scene/assets/XRRightH_New2.glb.
+- The loader now uses ./assets/XRRightH_New2.glb.
 - The previous XRRightHand_grip_origin.glb has been removed from the package.
 
 2. AR-only screen angle buttons
