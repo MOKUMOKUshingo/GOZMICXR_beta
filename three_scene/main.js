@@ -8,7 +8,6 @@ const LANG_KEY = 'cozmixSpaceLang';
 const sceneTexts = {
   en: {
     arName: 'COZMIX Space AR Mini Gallery',
-    arLabel: ['COZMIX Space AR', 'tap a surface to place'],
     vrButton: 'ENTER VR',
     arButton: 'START AR',
     cameraARButton: 'CAMERA AR',
@@ -35,7 +34,6 @@ const sceneTexts = {
   },
   ja: {
     arName: 'COZMIX Space AR ミニギャラリー',
-    arLabel: ['COZMIX Space AR', '床や机をタップして配置'],
     vrButton: 'VRに入る',
     arButton: 'ARを開始',
     cameraARButton: 'カメラAR',
@@ -490,6 +488,46 @@ function makeVideoControlButton(label, action, width = 0.88, height = 0.32) {
   return mesh;
 }
 
+
+function makeVideoScrubBar(label, action, width = 5.8, height = 0.16) {
+  const group = new THREE.Group();
+  group.name = `${label} video scrub bar`;
+  group.userData.scrubWidth = width;
+
+  const rail = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({ color: 0x07313f, transparent: true, opacity: 0.82, side: THREE.DoubleSide })
+  );
+  rail.name = `${label} scrub rail`;
+  rail.userData.projectVideoAction = action;
+  rail.userData.scrubWidth = width;
+  group.add(rail);
+
+  const fill = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height * 0.55),
+    new THREE.MeshBasicMaterial({ color: 0x79e7ff, transparent: true, opacity: 0.92, side: THREE.DoubleSide })
+  );
+  fill.name = `${label} scrub fill`;
+  fill.position.z = 0.012;
+  fill.position.x = -width / 2;
+  fill.scale.x = 0.001;
+  group.add(fill);
+
+  const knob = new THREE.Mesh(
+    new THREE.SphereGeometry(height * 0.92, 20, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x6ee6ff, emissiveIntensity: 0.55, roughness: 0.25 })
+  );
+  knob.name = `${label} scrub knob`;
+  knob.position.set(-width / 2, 0, 0.04);
+  knob.userData.projectVideoAction = action;
+  group.add(knob);
+
+  group.userData.fill = fill;
+  group.userData.knob = knob;
+  group.userData.projectVideoAction = action;
+  return group;
+}
+
 const videoMaterial = new THREE.MeshBasicMaterial({
   map: posterTexture,
   toneMapped: false,
@@ -792,6 +830,69 @@ function seekProjectVideo(seconds) {
   }
 }
 
+
+let lastProjectVideoHit = null;
+
+function seekProjectVideoToRatio(ratio) {
+  if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
+    setProjectVideoStatus(tr.videoSeekUnknown, '');
+    if (video && video.readyState === 0) video.load();
+    return;
+  }
+  const nextTime = THREE.MathUtils.clamp(ratio, 0, 1) * Math.max(0, video.duration - 0.05);
+  try {
+    video.currentTime = nextTime;
+    ensureVideoTexture();
+    updateVideoScrubVisuals();
+  } catch (error) {
+    setProjectVideoStatus(tr.videoSeekUnknown, '');
+  }
+}
+
+function seekProjectVideoFromLastHit() {
+  if (!lastProjectVideoHit || !lastProjectVideoHit.object) return;
+  const object = lastProjectVideoHit.object;
+  const scrubRoot = object.userData && object.userData.scrubWidth ? object : object.parent;
+  if (!scrubRoot || !scrubRoot.worldToLocal) return;
+  const local = scrubRoot.worldToLocal(lastProjectVideoHit.point.clone());
+  const width = scrubRoot.userData.scrubWidth || 1;
+  const ratio = THREE.MathUtils.clamp((local.x / width) + 0.5, 0, 1);
+  seekProjectVideoToRatio(ratio);
+}
+
+function updateSingleScrubBar(group) {
+  if (!group || !video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+  const ratio = THREE.MathUtils.clamp((video.currentTime || 0) / video.duration, 0, 1);
+  const width = group.userData.scrubWidth || 1;
+  if (group.userData.knob) group.userData.knob.position.x = -width / 2 + ratio * width;
+  if (group.userData.fill) {
+    group.userData.fill.scale.x = Math.max(0.001, ratio);
+    group.userData.fill.position.x = -width / 2 + (ratio * width) / 2;
+  }
+}
+
+function updateVideoScrubVisuals() {
+  updateSingleScrubBar(typeof projectScrubBar3D !== 'undefined' ? projectScrubBar3D : null);
+  updateSingleScrubBar(typeof arScrubBar !== 'undefined' ? arScrubBar : null);
+}
+
+function processControllerVideoScrub(controller) {
+  if (!controller || !controller.userData || !controller.userData.selecting) return false;
+  xrRayMatrix.identity().extractRotation(controller.matrixWorld);
+  videoRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+  videoRaycaster.ray.direction.set(0, 0, -1).applyMatrix4(xrRayMatrix).normalize();
+  const hits = videoRaycaster.intersectObjects(videoInteractiveObjects, true);
+  for (const hit of hits) {
+    const action = findProjectVideoAction(hit.object);
+    if (action === 'scrub-main' || action === 'scrub-ar') {
+      lastProjectVideoHit = hit;
+      seekProjectVideoFromLastHit();
+      return true;
+    }
+  }
+  return false;
+}
+
 function runProjectVideoAction(action, withSound = false) {
   const wantsXRSound = currentXRMode === 'vr' || currentXRMode === 'ar';
   if (action === 'rewind') {
@@ -800,12 +901,8 @@ function runProjectVideoAction(action, withSound = false) {
     seekProjectVideo(10);
   } else if (action === 'sound') {
     startProjectVideo(true, wantsXRSound ? 'xr-select' : 'manual');
-  } else if (action === 'ar-scale-up') {
-    multiplyARScreenScale(1.12);
-  } else if (action === 'ar-scale-down') {
-    multiplyARScreenScale(1 / 1.12);
-  } else if (action === 'ar-curve') {
-    adjustARScreenCurve(0.08);
+  } else if (action === 'scrub-main' || action === 'scrub-ar') {
+    seekProjectVideoFromLastHit();
   } else {
     toggleProjectVideo(withSound || wantsXRSound);
   }
@@ -956,6 +1053,12 @@ forwardButton3D.position.set(2.75, -5.35, 0.56);
 projectScreenGroup.add(forwardButton3D);
 addVideoInteractiveObject(forwardButton3D, 'forward');
 
+const projectScrubBar3D = makeVideoScrubBar('VR / Web', 'scrub-main', 9.2, 0.18);
+projectScrubBar3D.position.set(0, -5.95, 0.58);
+projectScreenGroup.add(projectScrubBar3D);
+addVideoInteractiveObject(projectScrubBar3D, 'scrub-main');
+
+
 const desktopOverlayCorners = [
   new THREE.Vector3(-projectScreenWidth / 2, projectScreenHeight / 2, 0.72),
   new THREE.Vector3(projectScreenWidth / 2, projectScreenHeight / 2, 0.72),
@@ -1056,14 +1159,6 @@ arContent.name = tr.arName;
 arContent.visible = false;
 scene.add(arContent);
 
-const arBase = new THREE.Mesh(
-  new THREE.RingGeometry(0.42, 0.48, 72),
-  new THREE.MeshBasicMaterial({ color: 0x69e6ff, transparent: true, opacity: 0.56, side: THREE.DoubleSide })
-);
-arBase.rotation.x = -Math.PI / 2;
-arBase.position.y = 0.012;
-arContent.add(arBase);
-
 const arGrid = new THREE.GridHelper(1.25, 8, 0x9be3ff, 0x2e8294);
 arGrid.position.y = 0.018;
 arGrid.material.transparent = true;
@@ -1071,8 +1166,6 @@ arGrid.material.opacity = 0.42;
 arContent.add(arGrid);
 
 const arPortal = new THREE.Group();
-arPortal.position.set(0, 2.20, -1.10);
-arPortal.rotation.x = 0.22;
 arContent.add(arPortal);
 
 const AR_SCREEN_BASE_WIDTH = 4.64;
@@ -1085,11 +1178,33 @@ const AR_SCREEN_SCALE_MIN = 0.45;
 const AR_SCREEN_SCALE_MAX = 3.20;
 let arScreenCurveDepth = 0.44;
 
-const arPortalRing = new THREE.Mesh(
-  new THREE.TorusGeometry(2.36, 0.030, 16, 128),
-  new THREE.MeshStandardMaterial({ color: 0x69e6ff, emissive: 0x0b8cb4, emissiveIntensity: 1.35 })
-);
-arPortal.add(arPortalRing);
+// AR screen spherical-coordinate control.  The center of arContent is the
+// initial reference point.  r is radial distance from that point, phi is
+// longitude around the vertical Y axis, and theta is latitude/elevation.
+const arScreenInitialOffset = new THREE.Vector3(0, 2.20, -1.10);
+const arScreenLookAtLocal = new THREE.Vector3(0, 1.20, 0);
+const arScreenSpherical = {
+  r: arScreenInitialOffset.length(),
+  phi: Math.atan2(arScreenInitialOffset.x, -arScreenInitialOffset.z),
+  theta: Math.asin(arScreenInitialOffset.y / arScreenInitialOffset.length())
+};
+const AR_SCREEN_R_MIN = 0.75;
+const AR_SCREEN_R_MAX = 7.50;
+const AR_SCREEN_THETA_MIN = -0.35;
+const AR_SCREEN_THETA_MAX = 1.32;
+
+function applyARScreenSphericalTransform() {
+  const cosTheta = Math.cos(arScreenSpherical.theta);
+  arPortal.position.set(
+    arScreenSpherical.r * cosTheta * Math.sin(arScreenSpherical.phi),
+    arScreenSpherical.r * Math.sin(arScreenSpherical.theta),
+    -arScreenSpherical.r * cosTheta * Math.cos(arScreenSpherical.phi)
+  );
+  // Keep the parabolic screen facing the AR anchor/user side as it moves.
+  arPortal.lookAt(arScreenLookAtLocal);
+  arPortal.rotateX(-0.10);
+}
+applyARScreenSphericalTransform();
 
 arVideoMaterial = new THREE.MeshBasicMaterial({
   map: videoTexture || posterTexture,
@@ -1105,7 +1220,6 @@ const arVideoScreen = new THREE.Mesh(
 arVideoScreen.name = 'Project Movie AR Parabolic Screen';
 arVideoScreen.position.z = -0.035;
 arPortal.add(arVideoScreen);
-addVideoInteractiveObject(arVideoScreen, 'ar-curve');
 
 // AR controller/screen-tap rays are less precise than desktop mouse rays.
 // Add a transparent, slightly larger touch target so a trigger aimed at the
@@ -1117,7 +1231,6 @@ const arVideoHitTarget = new THREE.Mesh(
 arVideoHitTarget.name = 'Project Movie AR Large Hit Target';
 arVideoHitTarget.position.z = 0.035;
 arPortal.add(arVideoHitTarget);
-addVideoInteractiveObject(arVideoHitTarget, 'ar-curve');
 
 const arRewindButton = makeVideoControlButton(tr.rewindVideo, 'rewind', 1.18, 0.38);
 arRewindButton.position.set(-1.72, -1.66, 0.20);
@@ -1134,27 +1247,11 @@ arForwardButton.position.set(1.72, -1.66, 0.20);
 arPortal.add(arForwardButton);
 addVideoInteractiveObject(arForwardButton, 'forward');
 
-const arScaleDownButton = makeVideoControlButton('SCALE -', 'ar-scale-down', 1.26, 0.38);
-arScaleDownButton.position.set(-1.15, -2.14, 0.20);
-arPortal.add(arScaleDownButton);
-addVideoInteractiveObject(arScaleDownButton, 'ar-scale-down');
+const arScrubBar = makeVideoScrubBar('AR', 'scrub-ar', 3.85, 0.105);
+arScrubBar.position.set(0, -2.08, 0.22);
+arPortal.add(arScrubBar);
+addVideoInteractiveObject(arScrubBar, 'scrub-ar');
 
-const arScaleUpButton = makeVideoControlButton('SCALE +', 'ar-scale-up', 1.26, 0.38);
-arScaleUpButton.position.set(1.15, -2.14, 0.20);
-arPortal.add(arScaleUpButton);
-addVideoInteractiveObject(arScaleUpButton, 'ar-scale-up');
-
-const arLabel = makeTextSprite(tr.arLabel, {
-  width: 1024,
-  height: 300,
-  font: `54px ${canvasFontFamily}`,
-  lineHeight: 66,
-  scaleX: 0.9,
-  scaleY: 0.26,
-  background: 'rgba(0, 53, 74, 0.70)'
-});
-arLabel.position.set(0, 2.72, -0.72);
-arContent.add(arLabel);
 
 const arCardGeometry = new THREE.PlaneGeometry(0.20, 0.27);
 const arCards = [];
@@ -1245,6 +1342,7 @@ function placeARContent() {
   arContent.position.y += 0.015;
   orientARContentTowardCamera();
   arContent.visible = true;
+  applyARScreenSphericalTransform();
   return true;
 }
 
@@ -1261,6 +1359,7 @@ function placeARContentInFrontOfCamera() {
   arContent.position.y = Math.max(arCameraWorld.y - 0.55, -0.2);
   orientARContentTowardCamera();
   arContent.visible = true;
+  applyARScreenSphericalTransform();
   return true;
 }
 
@@ -1275,6 +1374,7 @@ function placeCameraARContentInFrontOfCamera() {
   arContent.position.y = arCameraWorld.y - 0.38;
   orientARContentTowardCamera();
   arContent.visible = true;
+  applyARScreenSphericalTransform();
   return true;
 }
 
@@ -1327,52 +1427,78 @@ function adjustARScreenCurve(deltaDepth) {
   rebuildARVideoScreenGeometry();
 }
 
+function getXRInputSourceByHand(handedness) {
+  const session = renderer.xr.getSession();
+  if (!session) return null;
+  for (const source of session.inputSources) {
+    if (source.handedness === handedness) return source;
+  }
+  return null;
+}
+
+function getXRTriggerValueByHand(handedness) {
+  return getTriggerValueFromInputSource(getXRInputSourceByHand(handedness));
+}
+
 function updateARScreenControllerManipulation(delta) {
   if (currentXRMode !== 'ar' || !arContent.visible) return;
 
   const leftAxes = getXRInputAxesByHand('left');
   const rightAxes = getXRInputAxesByHand('right');
-  const leftX = applyDeadzone(leftAxes.x, 0.16);
-  const leftY = applyDeadzone(leftAxes.y, 0.16);
-  const rightX = applyDeadzone(rightAxes.x, 0.16);
-  const rightY = applyDeadzone(rightAxes.y, 0.16);
+  const leftX = applyDeadzone(leftAxes.x, 0.14);
+  const leftY = applyDeadzone(leftAxes.y, 0.14);
+  const rightX = applyDeadzone(rightAxes.x, 0.14);
+  const rightY = applyDeadzone(rightAxes.y, 0.14);
 
-  // Left stick: translate the AR movie screen relative to the current camera.
-  // X = screen left/right.  Y = depth forward/back.  Hold squeeze while moving
-  // the left stick up/down to translate the screen vertically instead.
-  if (Math.abs(leftX) > 0 || Math.abs(leftY) > 0) {
-    const activeCamera = getActiveViewCamera();
-    activeCamera.updateMatrixWorld(true);
-    activeCamera.getWorldDirection(arManipForward);
-    arManipForward.y = 0;
-    if (arManipForward.lengthSq() < 0.0001) arManipForward.set(0, 0, -1);
-    arManipForward.normalize();
-    arManipRight.crossVectors(arManipForward, worldUpVec).normalize();
+  // Left stick: spherical longitude phi and latitude theta.
+  // Right stick: radial distance r and parabolic curvature depth.
+  let changedSpherical = false;
+  if (Math.abs(leftX) > 0) {
+    arScreenSpherical.phi += leftX * 1.35 * delta;
+    changedSpherical = true;
+  }
+  if (Math.abs(leftY) > 0) {
+    arScreenSpherical.theta = THREE.MathUtils.clamp(
+      arScreenSpherical.theta - leftY * 0.92 * delta,
+      AR_SCREEN_THETA_MIN,
+      AR_SCREEN_THETA_MAX
+    );
+    changedSpherical = true;
+  }
+  if (Math.abs(rightY) > 0) {
+    arScreenSpherical.r = THREE.MathUtils.clamp(
+      arScreenSpherical.r - rightY * 1.15 * delta,
+      AR_SCREEN_R_MIN,
+      AR_SCREEN_R_MAX
+    );
+    changedSpherical = true;
+  }
+  if (changedSpherical) applyARScreenSphericalTransform();
 
-    const verticalMode = controllers.some((controller) => controller.userData.handedness === 'left' && controller.userData.squeezeGripping);
-    arManipMove.set(0, 0, 0);
-    arManipMove.addScaledVector(arManipRight, leftX);
-    if (verticalMode) arManipMove.y += -leftY;
-    else arManipMove.addScaledVector(arManipForward, -leftY);
-
-    if (arManipMove.lengthSq() > 1) arManipMove.normalize();
-    moveObjectByWorldVector(arPortal, arManipMove.multiplyScalar(0.72 * delta));
+  if (Math.abs(rightX) > 0) {
+    adjustARScreenCurve(rightX * 0.55 * delta);
   }
 
-  // Right stick: rotate only the AR movie screen.  It does not move the user.
-  if (Math.abs(rightX) > 0 || Math.abs(rightY) > 0) {
-    arPortal.rotation.y += -rightX * 1.45 * delta;
-    arPortal.rotation.x = THREE.MathUtils.clamp(arPortal.rotation.x + rightY * 1.10 * delta, -0.75, 0.85);
-  }
-
-  // Hold trigger while pointing at the parabolic AR screen to increase curvature.
-  // Hold squeeze at the same time to decrease it.  This avoids adding another UI.
+  // Triggers scale the AR screen directly; no SCALE +/- boards are used.
+  // Left trigger shrinks, right trigger enlarges.  If a trigger is held on a
+  // scrub bar, scrubbing takes priority over scale for that controller.
+  let scaleDelta = 0;
   controllers.forEach((controller) => {
-    if (!controller.userData.arCurveAdjusting) return;
-    const direction = controller.userData.squeezeGripping ? -1 : 1;
-    adjustARScreenCurve(direction * 0.36 * delta);
+    const handedness = controller.userData.handedness || '';
+    if (controller.userData.selecting) {
+      if (processControllerVideoScrub(controller)) return;
+      // If the trigger is being used on a play/seek button, do not also scale.
+      if (getProjectVideoActionFromController(controller, false)) return;
+    }
+    const trigger = getXRTriggerValueByHand(handedness);
+    if (trigger <= 0.04) return;
+    scaleDelta += handedness === 'left' ? -trigger : trigger;
   });
+  if (Math.abs(scaleDelta) > 0.001) {
+    multiplyARScreenScale(Math.exp(scaleDelta * 0.82 * delta));
+  }
 }
+
 
 async function startCameraARFallback() {
   if (renderer.xr.isPresenting || cameraARActive) return;
@@ -1577,15 +1703,6 @@ const handForwardLocal = new THREE.Vector3();
 // The xr_hand_grip.glb wrist -> palm/finger axis must therefore be aligned to -Z.
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
-// ADD30 calibration from actual XR screenshots/user measurement:
-// The visible index-finger direction after ADD29 was approximately
-//   (sqrt(3)/2, -1/2, 0)
-// in controller-grip local space.  Rotate that vector directly onto
-// the WebXR forward ray axis (0, 0, -1), i.e. the blue ray direction.
-const measuredIndexDirection = new THREE.Vector3(Math.sqrt(3) / 2, -0.5, 0).normalize();
-const indexDirectionTarget = new THREE.Vector3(0, 0, -1);
-const indexDirectionFixQuat = new THREE.Quaternion().setFromUnitVectors(measuredIndexDirection, indexDirectionTarget);
-
 function findHandNode(model, handedness, role) {
   const left = handedness === 'left';
   const candidates = {
@@ -1643,11 +1760,6 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   // the viewer when the controller was rolled.
   model.rotateZ(handedness === 'left' ? -Math.PI / 2 : Math.PI / 2);
   model.rotateY(handedness === 'left' ? Math.PI : 0);
-
-  // Final measured correction: align the currently visible index-finger axis
-  // (sqrt(3)/2, -1/2, 0) to controller-grip -Z.  Use premultiply so the
-  // correction is applied in the parent/controller-grip coordinate frame.
-  model.quaternion.premultiply(indexDirectionFixQuat);
 
   model.updateMatrixWorld(true);
   const wristAfter = findHandNode(model, handedness, 'wrist');
@@ -1836,23 +1948,11 @@ for (let i = 0; i < 2; i++) {
 
   controller.addEventListener('selectstart', () => {
     controller.userData.selecting = true;
-    if (currentXRMode === 'ar' && arContent.visible) {
-      const arAction = getProjectVideoActionFromController(controller, true);
-      if (arAction === 'ar-curve') {
-        controller.userData.arCurveAdjusting = true;
-        adjustARScreenCurve(0.02);
-      }
-    }
   });
   controller.addEventListener('selectend', () => {
     if (currentXRMode === 'ar') {
-      const wasCurving = controller.userData.arCurveAdjusting;
-      controller.userData.arCurveAdjusting = false;
       const arAction = arContent.visible ? getProjectVideoActionFromController(controller, true) : null;
-      if (wasCurving) {
-        // Curvature is adjusted continuously while the trigger is held on the
-        // AR parabolic screen.  Do not also toggle video playback on release.
-      } else if (arAction) {
+      if (arAction) {
         runProjectVideoAction(arAction, true);
       } else if (!arContent.visible) {
         const placed = placeARContent();
@@ -1891,7 +1991,10 @@ function getProjectVideoActionFromCamera(clientX, clientY) {
   const hits = videoRaycaster.intersectObjects(videoInteractiveObjects, true);
   for (const hit of hits) {
     const action = findProjectVideoAction(hit.object);
-    if (action) return action;
+    if (action) {
+      lastProjectVideoHit = hit;
+      return action;
+    }
   }
   return null;
 }
@@ -1900,7 +2003,10 @@ function findActionFromCurrentRaycaster() {
   const hits = videoRaycaster.intersectObjects(videoInteractiveObjects, true);
   for (const hit of hits) {
     const action = findProjectVideoAction(hit.object);
-    if (action) return action;
+    if (action) {
+      lastProjectVideoHit = hit;
+      return action;
+    }
   }
   return null;
 }
@@ -2333,6 +2439,8 @@ function animate(timestamp, frame) {
   updateVideoFrameTexture(false);
   updateDesktopVideoOverlay();
   updateXRHandModels(delta);
+  updateVideoScrubVisuals();
+  if (renderer.xr.isPresenting) controllers.forEach((controller) => processControllerVideoScrub(controller));
 
   if (cameraARActive) {
     camera.rotation.set(pitch, yaw, 0);
@@ -2358,8 +2466,6 @@ function animate(timestamp, frame) {
   floor.position.y = -1.03 + Math.sin(t * 0.9) * 0.025;
   ring.rotation.z = Math.sin(t * 0.65) * 0.06;
   ring.scale.setScalar(1 + Math.sin(t * 1.8) * 0.025);
-  arPortalRing.rotation.z = -t * 0.45;
-  arPortalRing.scale.setScalar(1 + Math.sin(t * 1.7) * 0.035);
   particles.rotation.y += delta * 0.018;
   teleportMarker.rotation.z += delta * 1.6;
 
