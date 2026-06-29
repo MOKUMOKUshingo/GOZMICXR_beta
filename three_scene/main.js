@@ -270,21 +270,28 @@ const ring = new THREE.Mesh(ringGeometry, ringMaterial);
 ring.name = 'Start Position Climb Ring';
 // Put the blue ring at the protagonist start position and lay it flat so it
 // works as a climbable portal/platform instead of a distant vertical sign.
-ring.position.set(0, 0.42, 0);
+// Three.js/WebXR uses Y as the vertical axis.  Raise the climbable
+// start ring by increasing Y, not Z.  X/Z stay at the protagonist start
+// position while topY defines the height the player can stand on.
+const START_RING_TOP_Y = 1.20;
+const START_RING_RADIUS = 2.58;
+
+ring.position.set(0, START_RING_TOP_Y, 0);
 ring.rotation.x = Math.PI / 2;
 portalGroup.add(ring);
 
-// Invisible collision volume for the start ring. The visible torus is thin, so
-// the player uses this low cylinder as the walkable/climbable platform.
+// Invisible collision volume for the start ring.  It now extends from ground
+// level up to START_RING_TOP_Y, so the player can step/climb onto the higher
+// blue ring platform instead of passing through it.
 const startRingCollision = new THREE.Mesh(
-  new THREE.CylinderGeometry(2.58, 2.58, 0.42, 64),
+  new THREE.CylinderGeometry(START_RING_RADIUS, START_RING_RADIUS, START_RING_TOP_Y, 64),
   new THREE.MeshBasicMaterial({ visible: false })
 );
 startRingCollision.name = 'Start Position Climb Ring Collision';
-startRingCollision.position.set(0, 0.21, 0);
+startRingCollision.position.set(0, START_RING_TOP_Y / 2, 0);
 portalGroup.add(startRingCollision);
 
-const startRingPlatform = { x: 0, z: 0, radius: 2.58, topY: 0.42 };
+const startRingPlatform = { x: 0, z: 0, radius: START_RING_RADIUS, topY: START_RING_TOP_Y };
 const tmpClimbHeadWorld = new THREE.Vector3();
 
 function getClimbGroundYAtXZ(x, z) {
