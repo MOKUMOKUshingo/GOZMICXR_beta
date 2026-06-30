@@ -68,8 +68,8 @@ export function getSceneLang() {
   return (navigator.language || '').toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
 
-const sceneLang = getSceneLang();
-const tr = sceneTexts[sceneLang];
-const canvasFontFamily = sceneLang === 'ja' ? 'Arial, \"Hiragino Sans\", \"Yu Gothic\", sans-serif' : 'Arial';
-const SHOW_SCENE_TEXT_SIGNS = false;
+export const sceneLang = getSceneLang();
+export const tr = sceneTexts[sceneLang];
+export const canvasFontFamily = sceneLang === 'ja' ? 'Arial, \"Hiragino Sans\", \"Yu Gothic\", sans-serif' : 'Arial';
+export const SHOW_SCENE_TEXT_SIGNS = false;
 

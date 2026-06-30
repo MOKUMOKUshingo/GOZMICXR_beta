@@ -23,3 +23,6 @@ XR hand model:
 Public upload shape:
 - This ZIP has a single root folder whose name matches the ZIP name.
 - For the current GOSMIC/Django uploader, keep this one-root-folder structure.
+
+
+FIX: Stage3 initial module split caused three_scene/main.js to reference tr/sceneLang/canvasFontFamily before importing them. This build exports them from modules/scene-i18n.js and imports them explicitly.

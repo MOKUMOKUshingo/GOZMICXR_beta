@@ -7,7 +7,7 @@ import { SPACE_CONFIG } from './config.js';
 import { createParabolicScreenGeometry } from './modules/screen-geometry.js';
 import { extractGamepadStickAxes, applyDeadzone } from './modules/xr-input.js';
 
-import { sceneTexts, getSceneLang } from './modules/scene-i18n.js';
+import { sceneTexts, getSceneLang, sceneLang, tr, canvasFontFamily, SHOW_SCENE_TEXT_SIGNS } from './modules/scene-i18n.js';
 
 function setXRButtonLabels() {
   if (sceneLang !== 'ja') return;
