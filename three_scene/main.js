@@ -4,80 +4,10 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { SPACE_CONFIG } from './config.js';
+import { createParabolicScreenGeometry } from './modules/screen-geometry.js';
+import { extractGamepadStickAxes, applyDeadzone } from './modules/xr-input.js';
 
-const LANG_KEY = 'cozmixSpaceLang';
-const sceneTexts = {
-  en: {
-    arName: 'COZMIX Space AR Mini Gallery',
-    vrButton: 'ENTER VR',
-    arButton: 'START AR',
-    cameraARButton: 'CAMERA AR',
-    exitCameraAR: 'EXIT CAMERA AR',
-    videoLabel: 'PROJECT MOVIE',
-    videoWaiting: 'The large movie is not loaded yet. The poster is shown until the video can play.',
-    videoLoading: 'Loading projectmovie1.mp4... If it is hundreds of MB, this can take time.',
-    videoReady: 'Video metadata is ready. Press Play video or tap the movie screen.',
-    videoPlayingMuted: 'Playing muted in the 3D / VR / AR screen.',
-    videoPlayingSound: 'Playing with sound in the 3D / VR / AR screen.',
-    videoPaused: 'Paused. Press Play video or tap the movie screen to resume.',
-    videoBuffering: 'Buffering video data...',
-    videoError: 'projectmovie1.mp4 could not be played. Showing the poster instead.',
-    playMuted: 'Play video',
-    playSound: 'Play with sound',
-    retryVideo: 'Retry',
-    rewindVideo: '-10s',
-    forwardVideo: '+10s',
-    videoSeekingBack: 'Rewound 10 seconds.',
-    videoSeekingForward: 'Fast-forwarded 10 seconds.',
-    videoSeekUnknown: 'Video duration is not ready yet. Wait until metadata is loaded.',
-    playNative: 'Mobile player',
-    nativeNote: 'If mobile inline playback fails, use this native video player.'
-  },
-  ja: {
-    arName: 'COZMIX Space AR ミニギャラリー',
-    vrButton: 'VRに入る',
-    arButton: 'ARを開始',
-    cameraARButton: 'カメラAR',
-    exitCameraAR: 'カメラAR終了',
-    videoLabel: 'PROJECT MOVIE',
-    videoWaiting: '大容量動画はまだ読み込んでいません。再生できるまではposter画像を表示します。',
-    videoLoading: 'projectmovie1.mp4を読み込み中です。数百MBある場合は時間がかかります。',
-    videoReady: '動画メタデータを確認しました。「映像を再生」または画面タップで再生できます。',
-    videoPlayingMuted: '3D / VR / AR空間内で無音再生中です。',
-    videoPlayingSound: '3D / VR / AR空間内で音声あり再生中です。',
-    videoPaused: '一時停止中です。再生ボタンまたは動画スクリーンを押すと再開します。',
-    videoBuffering: '動画データをバッファ中です。',
-    videoError: 'projectmovie1.mp4を再生できません。代わりにposter画像を表示しています。',
-    playMuted: '映像を再生',
-    playSound: '音声ありで再生',
-    retryVideo: '再読込',
-    rewindVideo: '-10秒',
-    forwardVideo: '+10秒',
-    videoSeekingBack: '10秒巻き戻しました。',
-    videoSeekingForward: '10秒早送りしました。',
-    videoSeekUnknown: '動画の長さをまだ取得できません。メタデータ読み込み後に操作できます。',
-    playNative: 'スマホ再生',
-    nativeNote: 'スマホで3D内再生できない場合は、このネイティブ再生で確認できます。'
-  }
-};
-
-function getSceneLang() {
-  const fromUrl = new URLSearchParams(window.location.search).get('lang');
-  if (fromUrl === 'ja' || fromUrl === 'en') {
-    try { localStorage.setItem(LANG_KEY, fromUrl); } catch (e) {}
-    return fromUrl;
-  }
-  try {
-    const saved = localStorage.getItem(LANG_KEY);
-    if (saved === 'ja' || saved === 'en') return saved;
-  } catch (e) {}
-  return (navigator.language || '').toLowerCase().startsWith('ja') ? 'ja' : 'en';
-}
-
-const sceneLang = getSceneLang();
-const tr = sceneTexts[sceneLang];
-const canvasFontFamily = sceneLang === 'ja' ? 'Arial, \"Hiragino Sans\", \"Yu Gothic\", sans-serif' : 'Arial';
-const SHOW_SCENE_TEXT_SIGNS = false;
+import { sceneTexts, getSceneLang } from './modules/scene-i18n.js';
 
 function setXRButtonLabels() {
   if (sceneLang !== 'ja') return;
@@ -423,43 +353,6 @@ function findProjectVideoAction(object) {
 
 function isARScreenManipulationAction(action) {
   return typeof action === 'string' && action.startsWith('ar-');
-}
-
-function createParabolicScreenGeometry(width, height, widthSegments = 48, heightSegments = 28, depth = 0.42) {
-  const geometry = new THREE.BufferGeometry();
-  const positions = [];
-  const uvs = [];
-  const indices = [];
-
-  for (let y = 0; y <= heightSegments; y++) {
-    const v = y / heightSegments;
-    const py = (0.5 - v) * height;
-    const ny = (py / (height * 0.5));
-    for (let x = 0; x <= widthSegments; x++) {
-      const u = x / widthSegments;
-      const px = (u - 0.5) * width;
-      const nx = px / (width * 0.5);
-      const pz = depth * (nx * nx + 0.16 * ny * ny);
-      positions.push(px, py, pz);
-      uvs.push(u, 1 - v);
-    }
-  }
-
-  for (let y = 0; y < heightSegments; y++) {
-    for (let x = 0; x < widthSegments; x++) {
-      const a = y * (widthSegments + 1) + x;
-      const b = a + 1;
-      const c = a + (widthSegments + 1);
-      const d = c + 1;
-      indices.push(a, c, b, b, c, d);
-    }
-  }
-
-  geometry.setIndex(indices);
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.computeVertexNormals();
-  return geometry;
 }
 
 function makeVideoControlButton(label, action, width = 0.88, height = 0.32) {
@@ -1658,7 +1551,7 @@ function loadXRHandAsset() {
     if (xrHandClip) console.info(`XR hand animation loaded: ${xrHandClip.name || '(unnamed)'}, ${xrHandClip.duration.toFixed(3)}s`);
     return { scene: xrHandSource, clip: xrHandClip };
   }).catch((error) => {
-    console.warn('XRRightH_New3.glb load failed. Falling back to simple XR glove.', error);
+    console.warn('XRRightH_New4.glb load failed. Falling back to simple XR glove.', error);
     return { scene: null, clip: null };
   });
   return xrHandLoadPromise;
@@ -1698,7 +1591,7 @@ function createMinimalFallbackHand(handedness = 'right') {
 }
 
 function removeOtherHandParts(root, handedness) {
-  // XRRightH_New3.glb is a right-hand-only asset.  Do not remove internal parts;
+  // XRRightH_New4.glb is a right-hand-only asset.  Do not remove internal parts;
   // the left hand is produced later by mirroring the whole model on local X.
   return root;
 }
@@ -1740,7 +1633,7 @@ const handForwardLocal = new THREE.Vector3();
 const handForwardTarget = new THREE.Vector3(0, 0, -1);
 const handAlignQuat = new THREE.Quaternion();
 function findHandNode(model, handedness, role) {
-  // XRRightH_New3.glb contains a right-hand skeleton only.  Both left and right
+  // XRRightH_New4.glb contains a right-hand skeleton only.  Both left and right
   // cloned hands therefore use the same node names; the left hand is mirrored
   // as a whole in normalizeLoadedHandModel().
   const candidates = {
@@ -1769,7 +1662,7 @@ function normalizeLoadedHandModel(model, handedness = 'right') {
   const desired = SPACE_CONFIG.hand.desiredSize;
   const baseScale = desired / maxDim;
 
-  // XRRightH_New3.glb default finger axis is approximately local +Y.
+  // XRRightH_New4.glb default finger axis is approximately local +Y.
   // WebXR controller grip forward is local -Z, so rotate +Y -> -Z.
   // For the left controller, mirror the right-hand GLB on local X to create a
   // left hand while preserving the same Grip animation curves.
@@ -1822,7 +1715,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
     if (!sourceScene) return;
     container.clear();
     const model = SkeletonUtils.clone(sourceScene);
-    model.name = `${handedness} XRRightH_New3.glb controller hand`;
+    model.name = `${handedness} XRRightH_New4.glb controller hand`;
     removeOtherHandParts(model, handedness);
     stylizeLoadedXRHand(model);
     normalizeLoadedHandModel(model, handedness);
@@ -1834,7 +1727,7 @@ function attachLoadedXRHand(container, handedness = 'right') {
 
 function createXRHandModel(handedness = 'right') {
   const container = new THREE.Group();
-  container.name = `${handedness} XRRightH_New3.glb hand container`;
+  container.name = `${handedness} XRRightH_New4.glb hand container`;
   container.userData.handedness = handedness;
   container.userData.grip = 0;
   container.userData.gripTarget = 0;
@@ -2183,19 +2076,6 @@ function updateDesktopMovement(delta) {
   clampPlayerPosition();
 }
 
-function extractGamepadStickAxes(gamepad) {
-  if (!gamepad || !gamepad.axes) return { x: 0, y: 0 };
-  const axes = gamepad.axes;
-  const safe = (v) => Number.isFinite(v) ? v : 0;
-  const stick23 = { x: safe(axes[2]), y: safe(axes[3]) };
-  const stick01 = { x: safe(axes[0]), y: safe(axes[1]) };
-  // Meta Quest / WebXR thumbsticks normally use axes[2]/axes[3]. Prefer them
-  // when they are present, because axes[0]/axes[1] can be a touchpad/thumb-rest
-  // source on some runtimes and makes movement feel world-fixed or skewed.
-  if (axes.length >= 4 && Math.abs(stick23.x) + Math.abs(stick23.y) > 0.02) return stick23;
-  return stick01;
-}
-
 function getXRInputAxesByHand(handedness) {
   const session = renderer.xr.getSession();
   if (!session) return { x: 0, y: 0 };
@@ -2211,12 +2091,6 @@ function getXRInputAxesByHand(handedness) {
   }
 
   return fallbackSource ? extractGamepadStickAxes(fallbackSource.gamepad) : { x: 0, y: 0 };
-}
-
-function applyDeadzone(value, deadzone = 0.16) {
-  if (Math.abs(value) < deadzone) return 0;
-  const sign = Math.sign(value);
-  return sign * ((Math.abs(value) - deadzone) / (1 - deadzone));
 }
 
 const tmpDirection = new THREE.Vector3();

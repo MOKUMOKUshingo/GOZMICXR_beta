@@ -1,33 +1,25 @@
-GOZMIX Space 1 - Safe Publish Package
+GOZMIX Space 1 - public / upload build
 
 Entry point:
 - index.html
 
-Main 3D/XR scene:
-- three_scene/index.html
-- three_scene/main.js
+Runtime movie:
+- Put the large movie at: video/projectmovie1.mp4
+- Optional mobile fallback: video/projectmovie1_mobile.mp4
 
-Required external movie:
-- Put your movie file here when testing/publishing:
-  video/projectmovie1.mp4
+Main editable settings:
+- three_scene/config.js
 
-Optional mobile fallback movie:
-- If needed, put a mobile-friendly version here:
-  video/projectmovie1_mobile.mp4
+Three.js scene modules:
+- three_scene/main.js: main scene wiring and runtime loop
+- three_scene/config.js: paths, screen sizes, movement, AR/VR tuning
+- three_scene/modules/scene-i18n.js: scene language text and language detection
+- three_scene/modules/screen-geometry.js: parabolic screen geometry
+- three_scene/modules/xr-input.js: WebXR gamepad axis helpers
 
-Notes:
-- This package keeps the Add37 behavior and removes only development history notes and placeholder text files.
-- For GOSMIC upload compatibility, the ZIP name and the inner root folder name are both:
-  gozmix_space1_safe
-- VR/AR features should be tested on HTTPS or localhost.
+XR hand model:
+- three_scene/assets/XRRightH_New4.glb
 
-
-Maintenance update
-------------------
-This package includes three_scene/config.js.
-Common values such as video paths, hand GLB path, screen sizes, AR screen limits,
-start-ring collision height, and VR jump power can now be changed in config.js
-without editing the large main.js file directly.
-
-Current hand model:
-three_scene/assets/XRRightH_New3.glb
+Public upload shape:
+- This ZIP has a single root folder whose name matches the ZIP name.
+- For the current GOSMIC/Django uploader, keep this one-root-folder structure.

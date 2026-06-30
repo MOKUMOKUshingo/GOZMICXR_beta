@@ -7,7 +7,7 @@ export const SPACE_CONFIG = {
     projectVideo: '../video/projectmovie1.mp4',
     mobileProjectVideo: '../video/projectmovie1_mobile.mp4',
     posterImage: '../img/title1-poster.jpg',
-    handModel: './assets/XRRightH_New3.glb'
+    handModel: './assets/XRRightH_New4.glb'
   },
 
   camera: {
